@@ -151,7 +151,7 @@
         </h1>
         <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Masukkan password admin untuk mengatur kata.</p>
         
-        <div class="flex flex-col gap-4 items-center mb-8 w-full max-w-sm">
+        <div class="flex flex-col gap-4 items-center mb-8 w-full max-sm">
             <button onclick="startGame()" class="w-full px-12 py-5 bg-teal-500 hover:bg-teal-400 text-navy-dark font-extrabold rounded-full text-xl md:text-2xl btn-3d transition-all">
                 MULAI BERMAIN <i class="fas fa-play ml-2"></i>
             </button>
@@ -240,7 +240,6 @@
                     <div id="admin-team-list" class="space-y-2"></div>
                     <button onclick="resetPoints()" class="w-full py-3 bg-orange-600/20 text-orange-400 border border-orange-600/50 rounded-lg font-bold hover:bg-orange-600/30 transition text-sm">RESET SEMUA POIN</button>
                     
-                    <!-- REVISI: Ubah Password Section -->
                     <div class="mt-4 border-t border-gray-700 pt-4">
                         <h4 class="text-[10px] font-black uppercase text-teal-400 mb-2">Ganti Password Admin:</h4>
                         <div class="flex gap-2">
@@ -308,20 +307,15 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Initialization
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-kata-3d';
-
+        // Global state
+        let db = null;
+        let auth = null;
         let user = null;
-        let adminPassword = 'admin123'; // Default password
+        let adminPassword = 'admin123';
         let teams = [
             { id: 0, name: 'Tim Hijau', color: '#10b981', score: 0 },
             { id: 1, name: 'Tim Merah', color: '#ef4444', score: 0 }
         ];
-
         const teamColorPalette = ['#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#a855f7', '#eab308'];
         let nextColorIndex = 0;
         let currentLevel = 1;
@@ -330,23 +324,39 @@
         let activeHexIndex = null;
         let isRevealed = false;
 
-        const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        };
+        // Firebase Initialization with Safety Check for External Hosting (like GitHub Pages)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-kata-3d';
+        
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
 
-        onAuthStateChanged(auth, async (u) => {
-            user = u;
-            if (user) {
-                await loadPersistentData();
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                };
+
+                onAuthStateChanged(auth, async (u) => {
+                    user = u;
+                    if (user) {
+                        await loadPersistentData();
+                    }
+                });
+                
+                initAuth();
             }
-        });
+        } catch (error) {
+            console.warn("Database initialization skipped. Running in local mode.");
+        }
 
         async function loadPersistentData() {
-            if (!user) return;
+            if (!db || !user) return;
             document.getElementById('db-loading').style.display = 'block';
             try {
                 const docSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'gameConfig', 'settings'));
@@ -354,7 +364,7 @@
                     const cloudData = docSnap.data();
                     if (cloudData.wordsData) wordsData = JSON.parse(cloudData.wordsData);
                     if (cloudData.teams) teams = JSON.parse(cloudData.teams);
-                    if (cloudData.adminPassword) adminPassword = cloudData.adminPassword; // REVISI: Load password dari cloud
+                    if (cloudData.adminPassword) adminPassword = cloudData.adminPassword;
                     updateAdminTeamList();
                     renderStats();
                     updateAdminWordList();
@@ -367,18 +377,19 @@
         }
 
         async function syncToCloud() {
-            if (!user) return;
+            if (!db || !user) return;
             try {
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'gameConfig', 'settings'), {
                     wordsData: JSON.stringify(wordsData),
                     teams: JSON.stringify(teams),
-                    adminPassword: adminPassword // REVISI: Simpan password ke cloud
+                    adminPassword: adminPassword
                 });
             } catch (e) {
                 console.error("Error saving data:", e);
             }
         }
 
+        // --- GAME LOGIC (Attached to window even if DB fails) ---
         window.startGame = () => {
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('game-app').classList.remove('hidden');
@@ -441,6 +452,7 @@
 
         function renderGrid() {
             const container = document.getElementById('grid-container');
+            if (!container) return;
             container.innerHTML = '';
             for (let r = 0; r < 5; r++) {
                 const rowDiv = document.createElement('div');
@@ -586,10 +598,10 @@
             initLevel(currentLevel + 1);
         }
 
-        // ADMIN PANEL LOGIC
+        // --- ADMIN PANEL FUNCTIONS (Attached to window) ---
         window.checkWelcomeAdmin = () => {
             const passInput = document.getElementById('welcome-password');
-            if (passInput.value === adminPassword) { // REVISI: Bandingkan dengan password dinamis
+            if (passInput.value === adminPassword) {
                 const modal = document.getElementById('admin-modal');
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
@@ -605,7 +617,7 @@
             const isHidden = modal.classList.contains('hidden');
             if (isHidden) {
                 const pass = prompt("Masukkan Password Admin:");
-                if (pass === adminPassword) { // REVISI: Bandingkan dengan password dinamis
+                if (pass === adminPassword) {
                     modal.classList.remove('hidden');
                     modal.classList.add('flex');
                     updateAdminWordList();
@@ -617,7 +629,6 @@
             }
         };
 
-        // REVISI: Fungsi untuk mengganti password
         window.changeAdminPassword = async () => {
             const newPass = document.getElementById('new-admin-password').value;
             if (!newPass) {
@@ -750,7 +761,10 @@
         window.nextLevel = nextLevel;
         window.addEventListener('resize', () => { if (grid.length > 0) renderGrid(); });
         
-        initAuth();
+        // Initial setup calls for UI
+        updateAdminTeamList();
+        renderStats();
+
     </script>
 </body>
 </html>
