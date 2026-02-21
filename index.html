@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Honeycomb Word Game 3D - Interlocking</title>
+    <title>Honeycomb Word Game 3D - Clue System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -21,7 +21,6 @@
             touch-action: manipulation;
         }
 
-        /* Container for Interlocking Hexagons */
         #grid-container {
             padding: 40px 10px;
             display: flex;
@@ -37,7 +36,6 @@
             justify-content: center;
         }
 
-        /* Overlap logic for Interlocking */
         .hexagon-row:not(:first-child) {
             margin-top: -24px;
         }
@@ -70,12 +68,15 @@
         .hex-inner {
             text-align: center;
             font-weight: bold;
-            font-size: 1.1rem;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
             pointer-events: none;
             padding: 5px;
             word-wrap: break-word;
             max-width: 90%;
+            line-height: 1.1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .flashing {
@@ -105,28 +106,12 @@
             box-shadow: 0px 1px 0px rgba(0,0,0,0.4);
         }
 
-        /* RESPONSIVE HP SETTINGS */
         @media (max-width: 640px) {
-            .hex { 
-                width: 60px; 
-                height: 69px; 
-                font-size: 0.75rem; 
-                margin: 1px; 
-            }
-            .hex-inner {
-                font-size: 0.8rem;
-            }
-            .hexagon-row:not(:first-child) { 
-                margin-top: -18px; 
-            }
-            .hexagon-row:nth-child(even) { 
-                transform: translateX(31px); 
-            }
-            #grid-container {
-                padding: 20px 5px 120px 5px; /* Extra bottom padding for control panel */
-            }
+            .hex { width: 60px; height: 69px; margin: 1px; }
+            .hexagon-row:not(:first-child) { margin-top: -18px; }
+            .hexagon-row:nth-child(even) { transform: translateX(31px); }
+            #grid-container { padding: 20px 5px 150px 5px; }
             h1 { font-size: 3rem !important; }
-            .header-stats { gap: 1rem !important; }
         }
     </style>
 </head>
@@ -140,7 +125,7 @@
         <h1 class="text-4xl md:text-7xl font-black mb-4 text-white tracking-tighter uppercase italic">
             SELAMAT <span class="text-teal-400">DATANG</span>
         </h1>
-        <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Hubungkan 5 kata untuk kemenangan mutlak!</p>
+        <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Masukkan password admin untuk mengatur kata.</p>
         
         <div class="flex flex-col gap-4 items-center mb-8 w-full max-w-sm">
             <button onclick="startGame()" class="w-full px-12 py-5 bg-teal-500 hover:bg-teal-400 text-navy-dark font-extrabold rounded-full text-xl md:text-2xl btn-3d transition-all">
@@ -169,15 +154,13 @@
         <div class="flex flex-wrap justify-between items-center mb-4 md:mb-6 glass-morphism p-4 md:p-6 rounded-2xl shadow-2xl relative z-[60] gap-4">
             <div class="w-full md:w-auto text-center md:text-left">
                 <h2 id="level-display" class="text-2xl md:text-3xl font-black text-teal-400 tracking-widest uppercase">LEVEL 1</h2>
-                <p class="text-[10px] text-gray-400 uppercase tracking-widest">Sambungkan 5 kotak (+50 Poin)</p>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest">Sambungkan 5 kotak (+50 Poin Bonus)</p>
             </div>
             
-            <div class="flex items-center justify-between w-full md:w-auto header-stats gap-6 md:gap-10">
+            <div class="flex items-center justify-between w-full md:w-auto gap-6 md:gap-10">
                 <div id="team-stats-container" class="flex gap-6 md:gap-10 flex-1 justify-center">
-                    <!-- Teams Stats diinjeksi di sini -->
                 </div>
-                <!-- REVISI: Ikon Home untuk kembali ke halaman pertama -->
-                <button onclick="goHome()" class="bg-teal-500/20 text-teal-400 w-10 h-10 md:w-12 md:h-12 rounded-xl hover:bg-teal-500 hover:text-navy-dark transition flex items-center justify-center relative z-[70] cursor-pointer border border-teal-500/30">
+                <button onclick="goHome()" class="bg-teal-500/20 text-teal-400 w-10 h-10 md:w-12 md:h-12 rounded-xl hover:bg-teal-500 hover:text-navy-dark transition flex items-center justify-center relative z-[70] border border-teal-500/30">
                     <i class="fas fa-home text-lg md:text-xl"></i>
                 </button>
             </div>
@@ -186,26 +169,26 @@
         <!-- Grid Container -->
         <div class="relative overflow-visible py-4 md:py-10 z-10">
             <div id="grid-container">
-                <!-- Baris hexagon diinjeksi di sini -->
             </div>
         </div>
 
-        <!-- Panel Kontrol Konfirmasi (Melayang di Bawah) -->
-        <div id="action-controls" class="fixed bottom-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto glass-morphism p-4 md:p-5 rounded-3xl shadow-2xl flex flex-col md:flex-row items-center gap-4 md:gap-6 hidden border-2 border-teal-500/30 z-[80]">
-            <div class="flex items-center gap-4 w-full md:w-auto justify-center">
-                <div id="active-info" class="text-center px-4 border-r border-gray-700">
-                    <p class="text-[8px] text-gray-400 uppercase font-bold tracking-tighter">Inisial</p>
-                    <p id="active-letter" class="text-2xl md:text-3xl font-black text-teal-400">-</p>
+        <!-- Panel Kontrol Konfirmasi -->
+        <div id="action-controls" class="fixed bottom-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto glass-morphism p-4 md:p-5 rounded-3xl shadow-2xl flex flex-col items-center gap-3 hidden border-2 border-teal-500/30 z-[80] max-w-lg w-full">
+            <div class="flex flex-col items-center w-full gap-2 text-center">
+                <div id="clue-section" class="w-full pb-2 border-b border-gray-700">
+                    <p class="text-[8px] text-teal-400 uppercase font-black tracking-widest">Petunjuk (Clue)</p>
+                    <p id="revealed-clue" class="text-sm md:text-base font-semibold text-white italic">---</p>
                 </div>
-                <div id="active-word-display" class="hidden px-4 text-center min-w-[120px] md:min-w-[150px]">
-                    <p class="text-[8px] text-gray-400 uppercase font-bold tracking-tighter">Jawaban</p>
-                    <p id="revealed-word" class="text-lg md:text-2xl font-bold text-white uppercase tracking-tight">-</p>
+                
+                <div id="active-word-display" class="hidden w-full pt-1">
+                    <p class="text-[8px] text-teal-400 uppercase font-black tracking-widest">Jawaban</p>
+                    <p id="revealed-word" class="text-xl md:text-2xl font-black text-white uppercase tracking-tight">---</p>
                 </div>
             </div>
-            <div class="flex flex-col gap-1 w-full md:w-auto">
-                <p id="confirm-instruction" class="text-[8px] text-center text-gray-400 font-bold mb-1 uppercase">Klik lagi untuk ungkap kata</p>
-                <div id="scoring-buttons" class="flex gap-2 justify-center flex-wrap">
-                    <!-- Tombol Warna Tim -->
+            
+            <div class="flex flex-col gap-2 w-full">
+                <p id="confirm-instruction" class="text-[8px] text-center text-gray-400 font-bold uppercase tracking-widest">Klik lagi untuk ungkap jawaban</p>
+                <div id="scoring-buttons" class="flex gap-2 justify-center flex-wrap hidden">
                 </div>
             </div>
         </div>
@@ -235,8 +218,9 @@
 
                 <div class="space-y-6">
                     <h3 class="text-xl font-bold text-teal-400 flex items-center gap-2">
-                        <i class="fas fa-spell-check"></i> Bank Kata
+                        <i class="fas fa-spell-check"></i> Bank Kata & Clue
                     </h3>
+                    <p class="text-[10px] text-gray-400 italic">Format: Clue,Jawaban. Clue,Jawaban.</p>
                     <div class="flex flex-col gap-1">
                         <select id="admin-level-select" class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-black outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer text-sm uppercase">
                             <option value="1">LEVEL 1</option>
@@ -245,7 +229,7 @@
                             <option value="4">LEVEL 4</option>
                         </select>
                     </div>
-                    <textarea id="admin-word-input" rows="4" placeholder="Ketik kata-kata... (pisahkan koma)" class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-medium outline-none focus:ring-2 focus:ring-teal-500 text-sm"></textarea>
+                    <textarea id="admin-word-input" rows="4" placeholder="Contoh: Raja Hutan,Singa. Ibu Kota RI,Jakarta." class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-medium outline-none focus:ring-2 focus:ring-teal-500 text-sm"></textarea>
                     <div class="flex gap-2">
                         <button onclick="saveWords()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold transition text-white text-sm">SIMPAN</button>
                         <button onclick="resetWords()" class="px-4 py-3 bg-red-600/20 text-red-500 border border-red-600/50 rounded-lg font-bold hover:bg-red-600/30 transition"><i class="fas fa-trash"></i></button>
@@ -294,10 +278,19 @@
             initLevel(1);
         }
 
-        // Fungsi Kembali ke Home - REVISI: Langsung kembali tanpa konfirmasi
         function goHome() {
             document.getElementById('game-app').classList.add('hidden');
             document.getElementById('welcome-screen').classList.remove('hidden');
+        }
+
+        // Fungsi Helper untuk mengambil inisial berdasarkan jumlah kata
+        function getInitialsFromWords(phrase) {
+            if (!phrase) return "";
+            return phrase.split(' ')
+                         .filter(word => word.length > 0)
+                         .map(word => word[0])
+                         .join('')
+                         .toUpperCase();
         }
 
         function initLevel(lvl) {
@@ -306,16 +299,20 @@
             activeHexIndex = null;
             isRevealed = false;
             document.getElementById('action-controls').classList.add('hidden');
-            document.getElementById('scoring-buttons').classList.add('hidden');
             
             grid = [];
-            const levelWords = wordsData[lvl] || [];
+            const levelData = wordsData[lvl] || [];
             
             for (let i = 0; i < 25; i++) {
-                const word = levelWords[i] || "KATA";
+                const data = levelData[i] || { word: "KATA", clue: "Belum ada petunjuk admin." };
+                
+                // REVISI: Inisial sekarang diambil dari setiap huruf pertama kata, tanpa mempedulikan nomor Level
+                const initials = getInitialsFromWords(data.word);
+
                 grid.push({
-                    initial: word.substring(0, lvl).toUpperCase(),
-                    fullWord: word,
+                    initial: initials,
+                    fullWord: data.word,
+                    clue: data.clue,
                     owner: null, 
                     id: i
                 });
@@ -325,6 +322,17 @@
             renderStats();
             updateAdminTeamList();
             closeAdminDirectly();
+        }
+
+        function getDynamicFontSize(text) {
+            const length = text.length;
+            const isMobile = window.innerWidth < 640;
+            
+            if (length <= 3) return isMobile ? "0.9rem" : "1.1rem";
+            if (length <= 6) return isMobile ? "0.75rem" : "0.95rem";
+            if (length <= 9) return isMobile ? "0.6rem" : "0.75rem";
+            if (length <= 12) return isMobile ? "0.5rem" : "0.65rem";
+            return isMobile ? "0.4rem" : "0.55rem";
         }
 
         function renderGrid() {
@@ -350,8 +358,9 @@
                     
                     hex.onclick = () => handleHexClick(idx);
                     const displayText = data.owner !== null ? data.fullWord : data.initial;
+                    const fontSize = getDynamicFontSize(displayText);
                     
-                    hex.innerHTML = `<div class="hex-inner"><span class="initial text-white uppercase">${displayText}</span></div>`;
+                    hex.innerHTML = `<div class="hex-inner" style="font-size: ${fontSize};"><span class="initial text-white uppercase">${displayText}</span></div>`;
                     rowDiv.appendChild(hex);
                 }
                 container.appendChild(rowDiv);
@@ -381,6 +390,7 @@
 
         function handleHexClick(index) {
             if (grid[index].owner !== null) return;
+            
             if (activeHexIndex === index) {
                 revealWord(index);
             } else {
@@ -392,11 +402,11 @@
                 const currHex = document.getElementById(`hex-${index}`);
                 if (currHex) currHex.classList.add('flashing');
                 
-                document.getElementById('active-letter').innerText = grid[index].initial;
+                document.getElementById('revealed-clue').innerText = grid[index].clue;
                 document.getElementById('action-controls').classList.remove('hidden');
                 document.getElementById('active-word-display').classList.add('hidden');
                 document.getElementById('scoring-buttons').classList.add('hidden');
-                document.getElementById('confirm-instruction').innerText = "KLIK LAGI UNTUK UNGKAP KATA";
+                document.getElementById('confirm-instruction').innerText = "Klik lagi untuk ungkap jawaban";
                 isRevealed = false;
             }
         }
@@ -409,7 +419,7 @@
             document.getElementById('revealed-word').innerText = grid[index].fullWord;
             document.getElementById('active-word-display').classList.remove('hidden');
             document.getElementById('scoring-buttons').classList.remove('hidden');
-            document.getElementById('confirm-instruction').innerText = "KONFIRMASI PEMENANG:";
+            document.getElementById('confirm-instruction').innerText = "Konfirmasi Pemenang:";
         }
 
         function awardHex(teamId) {
@@ -421,11 +431,14 @@
             const hex = document.getElementById(`hex-${activeHexIndex}`);
             if (hex) {
                 hex.style.backgroundColor = team.color;
-                hex.querySelector('.initial').innerText = grid[activeHexIndex].fullWord;
+                const inner = hex.querySelector('.hex-inner');
+                inner.querySelector('.initial').innerText = grid[activeHexIndex].fullWord;
+                inner.style.fontSize = getDynamicFontSize(grid[activeHexIndex].fullWord);
             }
             
             team.score += 10;
 
+            // REVISI: Bonus 50 poin jika menyambungkan 5 warna yang sama tanpa jeda
             if (checkBonus(teamId)) {
                 team.score += 50;
                 showCelebration(`TIM ${team.name.toUpperCase()} MENYAMBUNG 5 KOTAK! BONUS 50 POIN!`);
@@ -436,22 +449,45 @@
             if (grid.every(h => h.owner !== null)) finishLevel();
         }
 
+        // REVISI: Logika pengecekan 5 sambungan (Horizontal, Vertikal, Diagonal)
         function checkBonus(teamId) {
+            // Horizontal Check
             for (let r = 0; r < 5; r++) {
                 let count = 0;
-                for (let c = 0; c < 5; c++) { if (grid[r * 5 + c].owner === teamId) count++; else break; }
+                for (let c = 0; c < 5; c++) { 
+                    if (grid[r * 5 + c].owner === teamId) count++; 
+                    else break; 
+                }
                 if (count === 5) return true;
             }
+            
+            // Vertical Check
             for (let c = 0; c < 5; c++) {
                 let count = 0;
-                for (let r = 0; r < 5; r++) { if (grid[r * 5 + c].owner === teamId) count++; else break; }
+                for (let r = 0; r < 5; r++) { 
+                    if (grid[r * 5 + c].owner === teamId) count++; 
+                    else break; 
+                }
                 if (count === 5) return true;
             }
-            let d1 = 0, d2 = 0;
-            for (let i = 0; i < 5; i++) { if (grid[i * 5 + i].owner === teamId) d1++; else break; }
+            
+            // Diagonal Utama (Top-Left to Bottom-Right)
+            let d1 = 0;
+            for (let i = 0; i < 5; i++) { 
+                if (grid[i * 5 + i].owner === teamId) d1++; 
+                else break; 
+            }
             if (d1 === 5) return true;
-            for (let i = 0; i < 5; i++) { if (grid[i * 5 + (4 - i)].owner === teamId) d2++; else break; }
-            return d2 === 5;
+            
+            // Diagonal Anti (Top-Right to Bottom-Left)
+            let d2 = 0;
+            for (let i = 0; i < 5; i++) { 
+                if (grid[i * 5 + (4 - i)].owner === teamId) d2++; 
+                else break; 
+            }
+            if (d2 === 5) return true;
+
+            return false;
         }
 
         function finishLevel() {
@@ -490,17 +526,6 @@
                 modal.classList.add('flex');
                 passInput.value = "";
             } else {
-                alert("Password Salah!");
-            }
-        }
-
-        function toggleAdmin() {
-            const pass = prompt("Masukkan Password Admin:");
-            if (pass === "admin123") {
-                const modal = document.getElementById('admin-modal');
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-            } else if (pass !== null) {
                 alert("Password Salah!");
             }
         }
@@ -549,8 +574,22 @@
             const lvl = document.getElementById('admin-level-select').value;
             const input = document.getElementById('admin-word-input').value;
             if (!input) return;
-            wordsData[lvl] = input.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0);
-            alert(`Berhasil menyimpan kata untuk Level ${lvl}`);
+
+            const pairs = input.split('.').filter(p => p.includes(','));
+            const formatted = pairs.map(p => {
+                const parts = p.split(',');
+                const clue = parts[0].trim();
+                const word = parts[1].trim();
+                return { clue, word };
+            });
+
+            if (formatted.length === 0) {
+                alert("Format salah! Gunakan format: Clue,Jawaban. Clue,Jawaban.");
+                return;
+            }
+
+            wordsData[lvl] = formatted;
+            alert(`Berhasil menyimpan ${formatted.length} pasangan Clue & Jawaban untuk Level ${lvl}`);
             document.getElementById('admin-word-input').value = '';
         }
 
@@ -566,6 +605,10 @@
             renderStats();
             alert("Semua poin tim telah direset.");
         }
+
+        window.addEventListener('resize', () => {
+            if (grid.length > 0) renderGrid();
+        });
 
         updateAdminTeamList();
     </script>
