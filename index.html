@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Honeycomb Word Game 3D - Interlocking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --navy-dark: #0a192f;
+            --navy-light: #112240;
+            --accent-blue: #64ffda;
+        }
+
+        body {
+            background-color: var(--navy-dark);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        /* Container for Interlocking Hexagons */
+        #grid-container {
+            padding: 40px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            perspective: 1000px;
+            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.5));
+            min-height: 400px;
+        }
+
+        .hexagon-row {
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Overlap logic for Interlocking */
+        .hexagon-row:not(:first-child) {
+            margin-top: -24px;
+        }
+
+        .hexagon-row:nth-child(even) {
+            transform: translateX(42px);
+        }
+
+        .hex {
+            width: 80px;
+            height: 92px;
+            background: var(--navy-light);
+            position: relative;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin: 2px;
+            transform-style: preserve-3d;
+        }
+
+        .hex:hover {
+            transform: scale(1.1) translateZ(30px);
+            z-index: 50;
+            background: #1d3557;
+        }
+
+        .hex-inner {
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            padding: 5px;
+            word-wrap: break-word;
+            max-width: 90%;
+        }
+
+        .flashing {
+            animation: flash 0.6s infinite alternate;
+            box-shadow: 0 0 20px white;
+            z-index: 40;
+            outline: 2px solid white !important;
+        }
+
+        @keyframes flash {
+            from { opacity: 1; filter: brightness(1.5); transform: scale(1.05) translateZ(10px); }
+            to { opacity: 0.7; filter: brightness(1); transform: scale(1) translateZ(0); }
+        }
+
+        .glass-morphism {
+            background: rgba(17, 34, 64, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 255, 218, 0.1);
+        }
+
+        .btn-3d {
+            transition: all 0.1s;
+            box-shadow: 0px 4px 0px rgba(0,0,0,0.4);
+        }
+        .btn-3d:active {
+            transform: translateY(2px);
+            box-shadow: 0px 1px 0px rgba(0,0,0,0.4);
+        }
+
+        /* RESPONSIVE HP SETTINGS */
+        @media (max-width: 640px) {
+            .hex { 
+                width: 60px; 
+                height: 69px; 
+                font-size: 0.75rem; 
+                margin: 1px; 
+            }
+            .hex-inner {
+                font-size: 0.8rem;
+            }
+            .hexagon-row:not(:first-child) { 
+                margin-top: -18px; 
+            }
+            .hexagon-row:nth-child(even) { 
+                transform: translateX(31px); 
+            }
+            #grid-container {
+                padding: 20px 5px 120px 5px; /* Extra bottom padding for control panel */
+            }
+            h1 { font-size: 3rem !important; }
+            .header-stats { gap: 1rem !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Layar Selamat Datang -->
+    <div id="welcome-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-navy-dark text-center p-6 text-white overflow-y-auto">
+        <div class="mb-4 animate-pulse">
+             <i class="fas fa-hexagon text-teal-400 text-6xl md:text-8xl"></i>
+        </div>
+        <h1 class="text-4xl md:text-7xl font-black mb-4 text-white tracking-tighter uppercase italic">
+            SELAMAT <span class="text-teal-400">DATANG</span>
+        </h1>
+        <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Hubungkan 5 kata untuk kemenangan mutlak!</p>
+        
+        <div class="flex flex-col gap-4 items-center mb-8 w-full max-w-sm">
+            <button onclick="startGame()" class="w-full px-12 py-5 bg-teal-500 hover:bg-teal-400 text-navy-dark font-extrabold rounded-full text-xl md:text-2xl btn-3d transition-all">
+                MULAI BERMAIN <i class="fas fa-play ml-2"></i>
+            </button>
+        </div>
+
+        <!-- Akses Admin -->
+        <div class="p-6 glass-morphism rounded-2xl border border-teal-500/20 max-w-xs w-full">
+            <h3 class="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-3">Panel Admin</h3>
+            <div class="flex flex-col gap-3">
+                <input id="welcome-password" type="password" placeholder="Password Admin" 
+                       class="w-full px-4 py-3 rounded-lg bg-white text-navy-dark font-bold outline-none focus:ring-4 focus:ring-teal-500/50 transition-all text-center">
+                <button onclick="checkWelcomeAdmin()" 
+                        class="w-full py-2 bg-teal-600 hover:bg-teal-500 text-white font-black rounded-lg text-xs uppercase tracking-tighter btn-3d">
+                    LOGIN ADMIN <i class="fas fa-lock-open ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Struktur Utama Aplikasi -->
+    <div id="game-app" class="hidden container mx-auto px-2 md:px-4 py-4 md:py-6">
+        
+        <!-- Header & Stats -->
+        <div class="flex flex-wrap justify-between items-center mb-4 md:mb-6 glass-morphism p-4 md:p-6 rounded-2xl shadow-2xl relative z-[60] gap-4">
+            <div class="w-full md:w-auto text-center md:text-left">
+                <h2 id="level-display" class="text-2xl md:text-3xl font-black text-teal-400 tracking-widest uppercase">LEVEL 1</h2>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest">Sambungkan 5 kotak (+50 Poin)</p>
+            </div>
+            
+            <div class="flex items-center justify-between w-full md:w-auto header-stats gap-6 md:gap-10">
+                <div id="team-stats-container" class="flex gap-6 md:gap-10 flex-1 justify-center">
+                    <!-- Teams Stats diinjeksi di sini -->
+                </div>
+                <!-- REVISI: Ikon Home untuk kembali ke halaman pertama -->
+                <button onclick="goHome()" class="bg-teal-500/20 text-teal-400 w-10 h-10 md:w-12 md:h-12 rounded-xl hover:bg-teal-500 hover:text-navy-dark transition flex items-center justify-center relative z-[70] cursor-pointer border border-teal-500/30">
+                    <i class="fas fa-home text-lg md:text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Grid Container -->
+        <div class="relative overflow-visible py-4 md:py-10 z-10">
+            <div id="grid-container">
+                <!-- Baris hexagon diinjeksi di sini -->
+            </div>
+        </div>
+
+        <!-- Panel Kontrol Konfirmasi (Melayang di Bawah) -->
+        <div id="action-controls" class="fixed bottom-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto glass-morphism p-4 md:p-5 rounded-3xl shadow-2xl flex flex-col md:flex-row items-center gap-4 md:gap-6 hidden border-2 border-teal-500/30 z-[80]">
+            <div class="flex items-center gap-4 w-full md:w-auto justify-center">
+                <div id="active-info" class="text-center px-4 border-r border-gray-700">
+                    <p class="text-[8px] text-gray-400 uppercase font-bold tracking-tighter">Inisial</p>
+                    <p id="active-letter" class="text-2xl md:text-3xl font-black text-teal-400">-</p>
+                </div>
+                <div id="active-word-display" class="hidden px-4 text-center min-w-[120px] md:min-w-[150px]">
+                    <p class="text-[8px] text-gray-400 uppercase font-bold tracking-tighter">Jawaban</p>
+                    <p id="revealed-word" class="text-lg md:text-2xl font-bold text-white uppercase tracking-tight">-</p>
+                </div>
+            </div>
+            <div class="flex flex-col gap-1 w-full md:w-auto">
+                <p id="confirm-instruction" class="text-[8px] text-center text-gray-400 font-bold mb-1 uppercase">Klik lagi untuk ungkap kata</p>
+                <div id="scoring-buttons" class="flex gap-2 justify-center flex-wrap">
+                    <!-- Tombol Warna Tim -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Modal -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/95 z-[200] hidden items-center justify-center p-4">
+        <div class="bg-navy-light w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 md:p-8 border border-gray-700">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter">Panel Kontrol Admin</h2>
+                <button onclick="closeAdminDirectly()" class="text-4xl text-gray-500 hover:text-white">&times;</button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="space-y-6">
+                    <h3 class="text-xl font-bold text-teal-400 flex items-center gap-2">
+                        <i class="fas fa-users"></i> Pengaturan Tim
+                    </h3>
+                    <div class="flex gap-2">
+                        <input id="new-team-name" type="text" placeholder="Nama Tim" class="bg-white border border-gray-300 rounded-lg p-3 flex-1 text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-teal-500 text-sm">
+                        <input id="new-team-color" type="color" value="#3b82f6" class="w-12 h-11 bg-transparent border-none cursor-pointer">
+                        <button onclick="addTeam()" class="bg-teal-600 hover:bg-teal-500 px-4 rounded-lg font-bold transition text-white text-xs">TAMBAH</button>
+                    </div>
+                    <div id="admin-team-list" class="space-y-2"></div>
+                    <button onclick="resetPoints()" class="w-full py-3 bg-orange-600/20 text-orange-400 border border-orange-600/50 rounded-lg font-bold hover:bg-orange-600/30 transition text-sm">RESET SEMUA POIN</button>
+                </div>
+
+                <div class="space-y-6">
+                    <h3 class="text-xl font-bold text-teal-400 flex items-center gap-2">
+                        <i class="fas fa-spell-check"></i> Bank Kata
+                    </h3>
+                    <div class="flex flex-col gap-1">
+                        <select id="admin-level-select" class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-black outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer text-sm uppercase">
+                            <option value="1">LEVEL 1</option>
+                            <option value="2">LEVEL 2</option>
+                            <option value="3">LEVEL 3</option>
+                            <option value="4">LEVEL 4</option>
+                        </select>
+                    </div>
+                    <textarea id="admin-word-input" rows="4" placeholder="Ketik kata-kata... (pisahkan koma)" class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-medium outline-none focus:ring-2 focus:ring-teal-500 text-sm"></textarea>
+                    <div class="flex gap-2">
+                        <button onclick="saveWords()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold transition text-white text-sm">SIMPAN</button>
+                        <button onclick="resetWords()" class="px-4 py-3 bg-red-600/20 text-red-500 border border-red-600/50 rounded-lg font-bold hover:bg-red-600/30 transition"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-8 pt-8 border-t border-gray-800 flex justify-center">
+                <button onclick="initLevel(currentLevel)" class="px-10 py-4 bg-teal-500 text-navy-dark font-black rounded-xl hover:bg-teal-400 shadow-xl btn-3d w-full md:w-auto">
+                    TERAPKAN & REFRESH GAME
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Celebration Overlay -->
+    <div id="celebration" class="fixed inset-0 bg-black/95 z-[300] hidden flex-col items-center justify-center text-center p-6 backdrop-blur-md">
+        <div id="celeb-content" class="animate-bounce mb-6">
+            <i class="fas fa-trophy text-yellow-400 text-7xl md:text-9xl drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]"></i>
+        </div>
+        <h2 id="celeb-title" class="text-4xl md:text-6xl font-black mb-4 text-white uppercase italic tracking-tighter">LUAR BIASA!</h2>
+        <p id="celeb-message" class="text-xl md:text-3xl text-teal-300 font-bold mb-10 max-w-2xl"></p>
+        <button onclick="nextLevel()" id="next-level-btn" class="px-10 py-4 bg-teal-500 text-navy-dark font-black rounded-full text-lg md:text-xl btn-3d">
+            LANJUTKAN <i class="fas fa-arrow-right ml-2"></i>
+        </button>
+    </div>
+
+    <script>
+        let teams = [
+            { id: 0, name: 'Tim Hijau', color: '#10b981', score: 0 },
+            { id: 1, name: 'Tim Merah', color: '#ef4444', score: 0 }
+        ];
+
+        const teamColorPalette = ['#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#a855f7', '#eab308'];
+        let nextColorIndex = 0;
+        let currentLevel = 1;
+
+        let wordsData = { 1: [], 2: [], 3: [], 4: [] };
+        let grid = []; 
+        let activeHexIndex = null;
+        let isRevealed = false;
+
+        function startGame() {
+            document.getElementById('welcome-screen').classList.add('hidden');
+            document.getElementById('game-app').classList.remove('hidden');
+            initLevel(1);
+        }
+
+        // Fungsi Kembali ke Home - REVISI: Langsung kembali tanpa konfirmasi
+        function goHome() {
+            document.getElementById('game-app').classList.add('hidden');
+            document.getElementById('welcome-screen').classList.remove('hidden');
+        }
+
+        function initLevel(lvl) {
+            currentLevel = lvl;
+            document.getElementById('level-display').innerText = `LEVEL ${lvl}`;
+            activeHexIndex = null;
+            isRevealed = false;
+            document.getElementById('action-controls').classList.add('hidden');
+            document.getElementById('scoring-buttons').classList.add('hidden');
+            
+            grid = [];
+            const levelWords = wordsData[lvl] || [];
+            
+            for (let i = 0; i < 25; i++) {
+                const word = levelWords[i] || "KATA";
+                grid.push({
+                    initial: word.substring(0, lvl).toUpperCase(),
+                    fullWord: word,
+                    owner: null, 
+                    id: i
+                });
+            }
+
+            renderGrid();
+            renderStats();
+            updateAdminTeamList();
+            closeAdminDirectly();
+        }
+
+        function renderGrid() {
+            const container = document.getElementById('grid-container');
+            container.innerHTML = '';
+
+            for (let r = 0; r < 5; r++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'hexagon-row';
+                
+                for (let c = 0; c < 5; c++) {
+                    const idx = r * 5 + c;
+                    const data = grid[idx];
+                    
+                    const hex = document.createElement('div');
+                    hex.className = 'hex';
+                    hex.id = `hex-${idx}`;
+                    
+                    if (data.owner !== null) {
+                        const ownerTeam = teams.find(t => t.id === data.owner);
+                        if (ownerTeam) hex.style.backgroundColor = ownerTeam.color;
+                    }
+                    
+                    hex.onclick = () => handleHexClick(idx);
+                    const displayText = data.owner !== null ? data.fullWord : data.initial;
+                    
+                    hex.innerHTML = `<div class="hex-inner"><span class="initial text-white uppercase">${displayText}</span></div>`;
+                    rowDiv.appendChild(hex);
+                }
+                container.appendChild(rowDiv);
+            }
+        }
+
+        function renderStats() {
+            const container = document.getElementById('team-stats-container');
+            container.innerHTML = '';
+            const scoringDiv = document.getElementById('scoring-buttons');
+            scoringDiv.innerHTML = '';
+
+            teams.forEach((team) => {
+                const stat = document.createElement('div');
+                stat.className = 'flex flex-col items-center';
+                stat.innerHTML = `<span class="text-[8px] md:text-[10px] font-black uppercase tracking-widest mb-1" style="color: ${team.color}">${team.name}</span><span class="text-2xl md:text-4xl font-black italic shadow-text">${team.score}</span>`;
+                container.appendChild(stat);
+
+                const btn = document.createElement('button');
+                btn.className = 'px-3 md:px-5 py-2 rounded-xl font-black text-navy-dark btn-3d text-[10px] md:text-sm uppercase transition-all whitespace-nowrap text-white';
+                btn.style.backgroundColor = team.color;
+                btn.innerText = team.name;
+                btn.onclick = () => awardHex(team.id);
+                scoringDiv.appendChild(btn);
+            });
+        }
+
+        function handleHexClick(index) {
+            if (grid[index].owner !== null) return;
+            if (activeHexIndex === index) {
+                revealWord(index);
+            } else {
+                if (activeHexIndex !== null) {
+                    const prevHex = document.getElementById(`hex-${activeHexIndex}`);
+                    if (prevHex) prevHex.classList.remove('flashing');
+                }
+                activeHexIndex = index;
+                const currHex = document.getElementById(`hex-${index}`);
+                if (currHex) currHex.classList.add('flashing');
+                
+                document.getElementById('active-letter').innerText = grid[index].initial;
+                document.getElementById('action-controls').classList.remove('hidden');
+                document.getElementById('active-word-display').classList.add('hidden');
+                document.getElementById('scoring-buttons').classList.add('hidden');
+                document.getElementById('confirm-instruction').innerText = "KLIK LAGI UNTUK UNGKAP KATA";
+                isRevealed = false;
+            }
+        }
+
+        function revealWord(index) {
+            isRevealed = true;
+            const currHex = document.getElementById(`hex-${index}`);
+            if (currHex) currHex.classList.remove('flashing');
+            
+            document.getElementById('revealed-word').innerText = grid[index].fullWord;
+            document.getElementById('active-word-display').classList.remove('hidden');
+            document.getElementById('scoring-buttons').classList.remove('hidden');
+            document.getElementById('confirm-instruction').innerText = "KONFIRMASI PEMENANG:";
+        }
+
+        function awardHex(teamId) {
+            if (activeHexIndex === null || !isRevealed) return;
+            const team = teams.find(t => t.id === teamId);
+            if (!team) return;
+
+            grid[activeHexIndex].owner = teamId;
+            const hex = document.getElementById(`hex-${activeHexIndex}`);
+            if (hex) {
+                hex.style.backgroundColor = team.color;
+                hex.querySelector('.initial').innerText = grid[activeHexIndex].fullWord;
+            }
+            
+            team.score += 10;
+
+            if (checkBonus(teamId)) {
+                team.score += 50;
+                showCelebration(`TIM ${team.name.toUpperCase()} MENYAMBUNG 5 KOTAK! BONUS 50 POIN!`);
+            }
+            activeHexIndex = null;
+            document.getElementById('action-controls').classList.add('hidden');
+            renderStats();
+            if (grid.every(h => h.owner !== null)) finishLevel();
+        }
+
+        function checkBonus(teamId) {
+            for (let r = 0; r < 5; r++) {
+                let count = 0;
+                for (let c = 0; c < 5; c++) { if (grid[r * 5 + c].owner === teamId) count++; else break; }
+                if (count === 5) return true;
+            }
+            for (let c = 0; c < 5; c++) {
+                let count = 0;
+                for (let r = 0; r < 5; r++) { if (grid[r * 5 + c].owner === teamId) count++; else break; }
+                if (count === 5) return true;
+            }
+            let d1 = 0, d2 = 0;
+            for (let i = 0; i < 5; i++) { if (grid[i * 5 + i].owner === teamId) d1++; else break; }
+            if (d1 === 5) return true;
+            for (let i = 0; i < 5; i++) { if (grid[i * 5 + (4 - i)].owner === teamId) d2++; else break; }
+            return d2 === 5;
+        }
+
+        function finishLevel() {
+            let winner = teams.reduce((prev, current) => (prev.score > current.score) ? prev : current);
+            showCelebration(`LEVEL SELESAI! PEMENANG SEMENTARA: ${winner.name}`, true);
+        }
+
+        function showCelebration(msg, isEnd = false) {
+            document.getElementById('celeb-message').innerText = msg;
+            document.getElementById('celebration').classList.remove('hidden');
+            document.getElementById('celebration').classList.add('flex');
+            const btn = document.getElementById('next-level-btn');
+            if (isEnd) {
+                btn.innerHTML = currentLevel < 4 ? `LEVEL ${currentLevel + 1} <i class="fas fa-arrow-right ml-2"></i>` : `RESTART <i class="fas fa-redo ml-2"></i>`;
+                btn.onclick = currentLevel < 4 ? () => nextLevel() : () => location.reload();
+            } else {
+                btn.innerHTML = `LANJUTKAN <i class="fas fa-play ml-2"></i>`;
+                btn.onclick = () => {
+                    document.getElementById('celebration').classList.add('hidden');
+                    document.getElementById('celebration').classList.remove('flex');
+                };
+            }
+        }
+
+        function nextLevel() {
+            document.getElementById('celebration').classList.add('hidden');
+            document.getElementById('celebration').classList.remove('flex');
+            initLevel(currentLevel + 1);
+        }
+
+        function checkWelcomeAdmin() {
+            const passInput = document.getElementById('welcome-password');
+            if (passInput.value === "admin123") {
+                const modal = document.getElementById('admin-modal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                passInput.value = "";
+            } else {
+                alert("Password Salah!");
+            }
+        }
+
+        function toggleAdmin() {
+            const pass = prompt("Masukkan Password Admin:");
+            if (pass === "admin123") {
+                const modal = document.getElementById('admin-modal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else if (pass !== null) {
+                alert("Password Salah!");
+            }
+        }
+
+        function closeAdminDirectly() {
+            const modal = document.getElementById('admin-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function addTeam() {
+            const nameInput = document.getElementById('new-team-name');
+            const colorInput = document.getElementById('new-team-color');
+            if (!nameInput.value) return;
+            const newId = teams.length > 0 ? Math.max(...teams.map(t => t.id)) + 1 : 0;
+            teams.push({ id: newId, name: nameInput.value, color: colorInput.value, score: 0 });
+            nameInput.value = '';
+            nextColorIndex = (nextColorIndex + 1) % teamColorPalette.length;
+            colorInput.value = teamColorPalette[nextColorIndex];
+            renderStats();
+            updateAdminTeamList();
+        }
+
+        function updateAdminTeamList() {
+            const list = document.getElementById('admin-team-list');
+            if (!list) return;
+            list.innerHTML = '';
+            teams.forEach((t) => {
+                const item = document.createElement('div');
+                item.className = 'flex justify-between items-center bg-navy-dark/50 p-3 rounded-lg border border-gray-700';
+                item.innerHTML = `<div class="flex items-center gap-3"><div class="w-5 h-5 rounded-full" style="background:${t.color}"></div><span class="font-bold text-white text-xs">${t.name}</span></div><button onclick="removeTeam(${t.id})" class="text-red-500 p-2"><i class="fas fa-trash-alt text-white"></i></button>`;
+                list.appendChild(item);
+            });
+        }
+
+        function removeTeam(id) {
+            if (teams.length <= 1) return;
+            teams = teams.filter(t => t.id !== id);
+            renderStats();
+            updateAdminTeamList();
+        }
+
+        function saveWords() {
+            const lvl = document.getElementById('admin-level-select').value;
+            const input = document.getElementById('admin-word-input').value;
+            if (!input) return;
+            wordsData[lvl] = input.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0);
+            alert(`Berhasil menyimpan kata untuk Level ${lvl}`);
+            document.getElementById('admin-word-input').value = '';
+        }
+
+        function resetWords() {
+            if(confirm("Hapus semua daftar kata?")) {
+                wordsData = { 1:[], 2:[], 3:[], 4:[] };
+                alert("Daftar kata dikosongkan.");
+            }
+        }
+
+        function resetPoints() {
+            teams.forEach(t => t.score = 0);
+            renderStats();
+            alert("Semua poin tim telah direset.");
+        }
+
+        updateAdminTeamList();
+    </script>
+</body>
+</html>
