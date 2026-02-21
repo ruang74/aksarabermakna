@@ -113,9 +113,33 @@
             #grid-container { padding: 20px 5px 150px 5px; }
             h1 { font-size: 3rem !important; }
         }
+
+        #db-loading {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 50%;
+            display: none;
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #64ffda;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body class="min-h-screen">
+
+    <div id="db-loading"><i class="fas fa-sync fa-spin"></i></div>
 
     <!-- Layar Selamat Datang -->
     <div id="welcome-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-navy-dark text-center p-6 text-white overflow-y-auto">
@@ -203,6 +227,7 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Team Management -->
                 <div class="space-y-6">
                     <h3 class="text-xl font-bold text-teal-400 flex items-center gap-2">
                         <i class="fas fa-users"></i> Pengaturan Tim
@@ -214,15 +239,25 @@
                     </div>
                     <div id="admin-team-list" class="space-y-2"></div>
                     <button onclick="resetPoints()" class="w-full py-3 bg-orange-600/20 text-orange-400 border border-orange-600/50 rounded-lg font-bold hover:bg-orange-600/30 transition text-sm">RESET SEMUA POIN</button>
+                    
+                    <!-- REVISI: Ubah Password Section -->
+                    <div class="mt-4 border-t border-gray-700 pt-4">
+                        <h4 class="text-[10px] font-black uppercase text-teal-400 mb-2">Ganti Password Admin:</h4>
+                        <div class="flex gap-2">
+                            <input id="new-admin-password" type="password" placeholder="Password Baru" class="bg-white border border-gray-300 rounded-lg p-3 flex-1 text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-teal-500 text-xs">
+                            <button onclick="changeAdminPassword()" class="bg-teal-600 hover:bg-teal-500 px-4 rounded-lg font-bold transition text-white text-xs btn-3d uppercase">SIMPAN</button>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="space-y-6">
+                <!-- Word Management -->
+                <div class="space-y-4">
                     <h3 class="text-xl font-bold text-teal-400 flex items-center gap-2">
                         <i class="fas fa-spell-check"></i> Bank Kata & Clue
                     </h3>
                     <p class="text-[10px] text-gray-400 italic">Format: Clue,Jawaban. Clue,Jawaban.</p>
                     <div class="flex flex-col gap-1">
-                        <select id="admin-level-select" class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-black outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer text-sm uppercase">
+                        <select id="admin-level-select" onchange="updateAdminWordList()" class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-black outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer text-sm uppercase">
                             <option value="1">LEVEL 1</option>
                             <option value="2">LEVEL 2</option>
                             <option value="3">LEVEL 3</option>
@@ -233,6 +268,17 @@
                     <div class="flex gap-2">
                         <button onclick="saveWords()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold transition text-white text-sm">SIMPAN</button>
                         <button onclick="resetWords()" class="px-4 py-3 bg-red-600/20 text-red-500 border border-red-600/50 rounded-lg font-bold hover:bg-red-600/30 transition"><i class="fas fa-trash"></i></button>
+                    </div>
+
+                    <div class="mt-4 border-t border-gray-700 pt-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-[10px] font-black uppercase text-teal-400">Daftar Kata Tersimpan:</h4>
+                            <button onclick="bulkDeleteLevelWords()" class="text-[9px] bg-red-500/10 text-red-500 border border-red-500/30 px-2 py-1 rounded hover:bg-red-500/20 font-black">
+                                HAPUS MASAL LEVEL INI
+                            </button>
+                        </div>
+                        <div id="admin-word-list" class="max-h-40 overflow-y-auto custom-scroll space-y-1">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -257,7 +303,20 @@
         </button>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Initialization
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-kata-3d';
+
+        let user = null;
+        let adminPassword = 'admin123'; // Default password
         let teams = [
             { id: 0, name: 'Tim Hijau', color: '#10b981', score: 0 },
             { id: 1, name: 'Tim Merah', color: '#ef4444', score: 0 }
@@ -266,24 +325,71 @@
         const teamColorPalette = ['#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#a855f7', '#eab308'];
         let nextColorIndex = 0;
         let currentLevel = 1;
-
         let wordsData = { 1: [], 2: [], 3: [], 4: [] };
         let grid = []; 
         let activeHexIndex = null;
         let isRevealed = false;
 
-        function startGame() {
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+
+        onAuthStateChanged(auth, async (u) => {
+            user = u;
+            if (user) {
+                await loadPersistentData();
+            }
+        });
+
+        async function loadPersistentData() {
+            if (!user) return;
+            document.getElementById('db-loading').style.display = 'block';
+            try {
+                const docSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'gameConfig', 'settings'));
+                if (docSnap.exists()) {
+                    const cloudData = docSnap.data();
+                    if (cloudData.wordsData) wordsData = JSON.parse(cloudData.wordsData);
+                    if (cloudData.teams) teams = JSON.parse(cloudData.teams);
+                    if (cloudData.adminPassword) adminPassword = cloudData.adminPassword; // REVISI: Load password dari cloud
+                    updateAdminTeamList();
+                    renderStats();
+                    updateAdminWordList();
+                }
+            } catch (e) {
+                console.error("Error loading data:", e);
+            } finally {
+                document.getElementById('db-loading').style.display = 'none';
+            }
+        }
+
+        async function syncToCloud() {
+            if (!user) return;
+            try {
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'gameConfig', 'settings'), {
+                    wordsData: JSON.stringify(wordsData),
+                    teams: JSON.stringify(teams),
+                    adminPassword: adminPassword // REVISI: Simpan password ke cloud
+                });
+            } catch (e) {
+                console.error("Error saving data:", e);
+            }
+        }
+
+        window.startGame = () => {
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('game-app').classList.remove('hidden');
             initLevel(1);
-        }
+        };
 
-        function goHome() {
+        window.goHome = () => {
             document.getElementById('game-app').classList.add('hidden');
             document.getElementById('welcome-screen').classList.remove('hidden');
-        }
+        };
 
-        // Fungsi Helper untuk mengambil inisial berdasarkan jumlah kata
         function getInitialsFromWords(phrase) {
             if (!phrase) return "";
             return phrase.split(' ')
@@ -305,8 +411,6 @@
             
             for (let i = 0; i < 25; i++) {
                 const data = levelData[i] || { word: "KATA", clue: "Belum ada petunjuk admin." };
-                
-                // REVISI: Inisial sekarang diambil dari setiap huruf pertama kata, tanpa mempedulikan nomor Level
                 const initials = getInitialsFromWords(data.word);
 
                 grid.push({
@@ -321,13 +425,13 @@
             renderGrid();
             renderStats();
             updateAdminTeamList();
+            updateAdminWordList();
             closeAdminDirectly();
         }
 
         function getDynamicFontSize(text) {
             const length = text.length;
             const isMobile = window.innerWidth < 640;
-            
             if (length <= 3) return isMobile ? "0.9rem" : "1.1rem";
             if (length <= 6) return isMobile ? "0.75rem" : "0.95rem";
             if (length <= 9) return isMobile ? "0.6rem" : "0.75rem";
@@ -338,28 +442,22 @@
         function renderGrid() {
             const container = document.getElementById('grid-container');
             container.innerHTML = '';
-
             for (let r = 0; r < 5; r++) {
                 const rowDiv = document.createElement('div');
                 rowDiv.className = 'hexagon-row';
-                
                 for (let c = 0; c < 5; c++) {
                     const idx = r * 5 + c;
                     const data = grid[idx];
-                    
                     const hex = document.createElement('div');
                     hex.className = 'hex';
                     hex.id = `hex-${idx}`;
-                    
                     if (data.owner !== null) {
                         const ownerTeam = teams.find(t => t.id === data.owner);
                         if (ownerTeam) hex.style.backgroundColor = ownerTeam.color;
                     }
-                    
                     hex.onclick = () => handleHexClick(idx);
                     const displayText = data.owner !== null ? data.fullWord : data.initial;
                     const fontSize = getDynamicFontSize(displayText);
-                    
                     hex.innerHTML = `<div class="hex-inner" style="font-size: ${fontSize};"><span class="initial text-white uppercase">${displayText}</span></div>`;
                     rowDiv.appendChild(hex);
                 }
@@ -369,10 +467,10 @@
 
         function renderStats() {
             const container = document.getElementById('team-stats-container');
+            if (!container) return;
             container.innerHTML = '';
             const scoringDiv = document.getElementById('scoring-buttons');
             scoringDiv.innerHTML = '';
-
             teams.forEach((team) => {
                 const stat = document.createElement('div');
                 stat.className = 'flex flex-col items-center';
@@ -390,7 +488,6 @@
 
         function handleHexClick(index) {
             if (grid[index].owner !== null) return;
-            
             if (activeHexIndex === index) {
                 revealWord(index);
             } else {
@@ -401,7 +498,6 @@
                 activeHexIndex = index;
                 const currHex = document.getElementById(`hex-${index}`);
                 if (currHex) currHex.classList.add('flashing');
-                
                 document.getElementById('revealed-clue').innerText = grid[index].clue;
                 document.getElementById('action-controls').classList.remove('hidden');
                 document.getElementById('active-word-display').classList.add('hidden');
@@ -415,7 +511,6 @@
             isRevealed = true;
             const currHex = document.getElementById(`hex-${index}`);
             if (currHex) currHex.classList.remove('flashing');
-            
             document.getElementById('revealed-word').innerText = grid[index].fullWord;
             document.getElementById('active-word-display').classList.remove('hidden');
             document.getElementById('scoring-buttons').classList.remove('hidden');
@@ -426,7 +521,6 @@
             if (activeHexIndex === null || !isRevealed) return;
             const team = teams.find(t => t.id === teamId);
             if (!team) return;
-
             grid[activeHexIndex].owner = teamId;
             const hex = document.getElementById(`hex-${activeHexIndex}`);
             if (hex) {
@@ -435,10 +529,7 @@
                 inner.querySelector('.initial').innerText = grid[activeHexIndex].fullWord;
                 inner.style.fontSize = getDynamicFontSize(grid[activeHexIndex].fullWord);
             }
-            
             team.score += 10;
-
-            // REVISI: Bonus 50 poin jika menyambungkan 5 warna yang sama tanpa jeda
             if (checkBonus(teamId)) {
                 team.score += 50;
                 showCelebration(`TIM ${team.name.toUpperCase()} MENYAMBUNG 5 KOTAK! BONUS 50 POIN!`);
@@ -449,45 +540,22 @@
             if (grid.every(h => h.owner !== null)) finishLevel();
         }
 
-        // REVISI: Logika pengecekan 5 sambungan (Horizontal, Vertikal, Diagonal)
         function checkBonus(teamId) {
-            // Horizontal Check
             for (let r = 0; r < 5; r++) {
                 let count = 0;
-                for (let c = 0; c < 5; c++) { 
-                    if (grid[r * 5 + c].owner === teamId) count++; 
-                    else break; 
-                }
+                for (let c = 0; c < 5; c++) { if (grid[r * 5 + c].owner === teamId) count++; else break; }
                 if (count === 5) return true;
             }
-            
-            // Vertical Check
             for (let c = 0; c < 5; c++) {
                 let count = 0;
-                for (let r = 0; r < 5; r++) { 
-                    if (grid[r * 5 + c].owner === teamId) count++; 
-                    else break; 
-                }
+                for (let r = 0; r < 5; r++) { if (grid[r * 5 + c].owner === teamId) count++; else break; }
                 if (count === 5) return true;
             }
-            
-            // Diagonal Utama (Top-Left to Bottom-Right)
-            let d1 = 0;
-            for (let i = 0; i < 5; i++) { 
-                if (grid[i * 5 + i].owner === teamId) d1++; 
-                else break; 
-            }
+            let d1 = 0, d2 = 0;
+            for (let i = 0; i < 5; i++) { if (grid[i * 5 + i].owner === teamId) d1++; else break; }
             if (d1 === 5) return true;
-            
-            // Diagonal Anti (Top-Right to Bottom-Left)
-            let d2 = 0;
-            for (let i = 0; i < 5; i++) { 
-                if (grid[i * 5 + (4 - i)].owner === teamId) d2++; 
-                else break; 
-            }
-            if (d2 === 5) return true;
-
-            return false;
+            for (let i = 0; i < 5; i++) { if (grid[i * 5 + (4 - i)].owner === teamId) d2++; else break; }
+            return d2 === 5;
         }
 
         function finishLevel() {
@@ -518,17 +586,51 @@
             initLevel(currentLevel + 1);
         }
 
-        function checkWelcomeAdmin() {
+        // ADMIN PANEL LOGIC
+        window.checkWelcomeAdmin = () => {
             const passInput = document.getElementById('welcome-password');
-            if (passInput.value === "admin123") {
+            if (passInput.value === adminPassword) { // REVISI: Bandingkan dengan password dinamis
                 const modal = document.getElementById('admin-modal');
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
                 passInput.value = "";
+                updateAdminWordList();
             } else {
                 alert("Password Salah!");
             }
-        }
+        };
+
+        window.toggleAdmin = () => {
+            const modal = document.getElementById('admin-modal');
+            const isHidden = modal.classList.contains('hidden');
+            if (isHidden) {
+                const pass = prompt("Masukkan Password Admin:");
+                if (pass === adminPassword) { // REVISI: Bandingkan dengan password dinamis
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    updateAdminWordList();
+                } else if (pass !== null) {
+                    alert("Password Salah!");
+                }
+            } else {
+                closeAdminDirectly();
+            }
+        };
+
+        // REVISI: Fungsi untuk mengganti password
+        window.changeAdminPassword = async () => {
+            const newPass = document.getElementById('new-admin-password').value;
+            if (!newPass) {
+                alert("Password baru tidak boleh kosong!");
+                return;
+            }
+            if (confirm("Ganti password admin?")) {
+                adminPassword = newPass;
+                await syncToCloud();
+                alert("Password admin berhasil diperbarui!");
+                document.getElementById('new-admin-password').value = "";
+            }
+        };
 
         function closeAdminDirectly() {
             const modal = document.getElementById('admin-modal');
@@ -537,8 +639,9 @@
                 modal.classList.remove('flex');
             }
         }
+        window.closeAdminDirectly = closeAdminDirectly;
 
-        function addTeam() {
+        window.addTeam = () => {
             const nameInput = document.getElementById('new-team-name');
             const colorInput = document.getElementById('new-team-color');
             if (!nameInput.value) return;
@@ -549,7 +652,8 @@
             colorInput.value = teamColorPalette[nextColorIndex];
             renderStats();
             updateAdminTeamList();
-        }
+            syncToCloud();
+        };
 
         function updateAdminTeamList() {
             const list = document.getElementById('admin-team-list');
@@ -562,55 +666,91 @@
                 list.appendChild(item);
             });
         }
+        window.updateAdminTeamList = updateAdminTeamList;
 
-        function removeTeam(id) {
+        window.removeTeam = (id) => {
             if (teams.length <= 1) return;
             teams = teams.filter(t => t.id !== id);
             renderStats();
             updateAdminTeamList();
-        }
+            syncToCloud();
+        };
 
-        function saveWords() {
+        window.saveWords = async () => {
             const lvl = document.getElementById('admin-level-select').value;
             const input = document.getElementById('admin-word-input').value;
             if (!input) return;
-
             const pairs = input.split('.').filter(p => p.includes(','));
             const formatted = pairs.map(p => {
                 const parts = p.split(',');
-                const clue = parts[0].trim();
-                const word = parts[1].trim();
-                return { clue, word };
+                return { clue: parts[0].trim(), word: parts[1].trim() };
             });
-
             if (formatted.length === 0) {
                 alert("Format salah! Gunakan format: Clue,Jawaban. Clue,Jawaban.");
                 return;
             }
-
-            wordsData[lvl] = formatted;
-            alert(`Berhasil menyimpan ${formatted.length} pasangan Clue & Jawaban untuk Level ${lvl}`);
+            wordsData[lvl] = [...(wordsData[lvl] || []), ...formatted];
+            await syncToCloud();
+            updateAdminWordList();
+            alert(`Berhasil menyimpan kata untuk Level ${lvl}`);
             document.getElementById('admin-word-input').value = '';
-        }
+        };
 
-        function resetWords() {
-            if(confirm("Hapus semua daftar kata?")) {
+        function updateAdminWordList() {
+            const list = document.getElementById('admin-word-list');
+            const lvl = document.getElementById('admin-level-select').value;
+            if (!list) return;
+            list.innerHTML = '';
+            const currentWords = wordsData[lvl] || [];
+            if (currentWords.length === 0) {
+                list.innerHTML = '<p class="text-[10px] text-gray-500 italic">Belum ada kata di level ini.</p>';
+                return;
+            }
+            currentWords.forEach((item, index) => {
+                const row = document.createElement('div');
+                row.className = 'flex justify-between items-center bg-navy-dark/40 p-2 rounded-lg border border-gray-800 text-[10px]';
+                row.innerHTML = `<div class="flex-1 truncate pr-2"><span class="text-teal-400 font-bold">${item.word}</span><span class="text-gray-400"> - ${item.clue}</span></div><button onclick="removeWord(${lvl}, ${index})" class="text-red-400 hover:text-red-300 p-1"><i class="fas fa-trash"></i></button>`;
+                list.appendChild(row);
+            });
+        }
+        window.updateAdminWordList = updateAdminWordList;
+
+        window.removeWord = async (lvl, index) => {
+            wordsData[lvl].splice(index, 1);
+            await syncToCloud();
+            updateAdminWordList();
+        };
+
+        window.bulkDeleteLevelWords = async () => {
+            const lvl = document.getElementById('admin-level-select').value;
+            if(confirm(`Hapus SEMUA kata pada LEVEL ${lvl}?`)) {
+                wordsData[lvl] = [];
+                await syncToCloud();
+                updateAdminWordList();
+            }
+        };
+
+        window.resetWords = async () => {
+            if(confirm("Hapus SEMUA daftar kata dari SEMUA level?")) {
                 wordsData = { 1:[], 2:[], 3:[], 4:[] };
+                await syncToCloud();
+                updateAdminWordList();
                 alert("Daftar kata dikosongkan.");
             }
-        }
+        };
 
-        function resetPoints() {
+        window.resetPoints = async () => {
             teams.forEach(t => t.score = 0);
             renderStats();
+            await syncToCloud();
             alert("Semua poin tim telah direset.");
-        }
+        };
 
-        window.addEventListener('resize', () => {
-            if (grid.length > 0) renderGrid();
-        });
-
-        updateAdminTeamList();
+        window.initLevel = initLevel;
+        window.nextLevel = nextLevel;
+        window.addEventListener('resize', () => { if (grid.length > 0) renderGrid(); });
+        
+        initAuth();
     </script>
 </body>
 </html>
