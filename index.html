@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Anti-Cache Header -->
+    <!-- Anti-Cache Meta Tags -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Honeycomb Word Game 3D - v1.4</title>
+    <title>Honeycomb Word Game 3D - v1.6</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -154,7 +154,7 @@
 <body class="min-h-screen">
 
     <div id="db-loading"><i class="fas fa-sync fa-spin text-teal-400"></i></div>
-    <div class="version-badge" id="v-tag">v1.4 (Smart Sync Active)</div>
+    <div class="version-badge" id="v-tag">v1.6 (Strict Data Sync)</div>
 
     <!-- Layar Selamat Datang -->
     <div id="welcome-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-navy-dark text-center p-6 text-white overflow-y-auto">
@@ -164,7 +164,7 @@
         <h1 class="text-4xl md:text-7xl font-black mb-4 text-white tracking-tighter uppercase italic">
             SELAMAT <span class="text-teal-400">DATANG</span>
         </h1>
-        <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Sinkronisasi cerdas antar perangkat aktif.</p>
+        <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Database tersambung secara otomatis.</p>
         
         <div class="flex flex-col gap-4 items-center mb-8 w-full max-w-sm">
             <button onclick="startGame()" class="w-full px-12 py-5 bg-teal-500 hover:bg-teal-400 text-navy-dark font-extrabold rounded-full text-xl md:text-2xl btn-3d transition-all">
@@ -242,15 +242,16 @@
             </div>
 
             <!-- Sync Info -->
-            <div id="sync-status" class="mb-6 p-3 rounded-xl bg-navy-dark border border-teal-500/30 text-[10px] flex items-center justify-between flex-wrap gap-2">
-                <div>Status Sinkronisasi: <b id="sync-mode" class="text-yellow-400 italic">Mengecek...</b></div>
+            <div id="sync-status" class="mb-6 p-3 rounded-xl bg-navy-dark border border-teal-500/30 text-[10px] flex flex-col gap-2">
+                <div class="flex justify-between">
+                    <span>Status: <b id="sync-mode" class="text-yellow-400 italic">Mengecek...</b></span>
+                    <span>ID App: <b id="app-id-display" class="text-white">---</b></span>
+                </div>
                 <div class="flex gap-2">
-                    <!-- REVISI: Tombol Force Update Semua Perangkat -->
-                    <button onclick="triggerForceReload()" class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg font-black uppercase tracking-tighter">
-                        PAKSA UPDATE SEMUA HP
+                    <button onclick="publishUpdate()" class="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg font-black uppercase tracking-tighter flex-1 shadow-lg">
+                        PUBLISH & PAKSA UPDATE SEMUA HP
                     </button>
-                    <button onclick="clearDeviceCache()" class="bg-teal-500/20 text-teal-400 px-3 py-1 rounded-lg border border-teal-500/30">RESET CACHE LOKAL</button>
-                    <button onclick="location.reload()" class="text-teal-400 underline">Refresh</button>
+                    <button onclick="clearDeviceCache()" class="bg-teal-500/20 text-teal-400 px-3 py-2 rounded-lg border border-teal-500/30 flex-1">RESET CACHE HP</button>
                 </div>
             </div>
 
@@ -334,7 +335,8 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Perangkat load time untuk deteksi update
+        // VERSI SKRIP - Gunakan timestamp sebagai ID unik sesi ini
+        const SCRIPT_VERSION = 1.6;
         const pageLoadTime = Date.now();
 
         // Global state
@@ -355,13 +357,14 @@
         let activeHexIndex = null;
         let isRevealed = false;
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-kata-3d';
+        // PENTING: Gunakan AppID yang sama persis di setiap device
+        const appId = "game-sarang-lebah-v1"; 
         
         function loadLocalData() {
             try {
-                const localWords = localStorage.getItem('game_kata_words');
-                const localTeams = localStorage.getItem('game_kata_teams');
-                const localPass = localStorage.getItem('game_kata_pass');
+                const localWords = localStorage.getItem('game_kata_words_v16');
+                const localTeams = localStorage.getItem('game_kata_teams_v16');
+                const localPass = localStorage.getItem('game_kata_pass_v16');
                 if (localWords) wordsData = JSON.parse(localWords);
                 if (localTeams) teams = JSON.parse(localTeams);
                 if (localPass) adminPassword = localPass;
@@ -369,12 +372,18 @@
         }
 
         function saveLocalData() {
-            localStorage.setItem('game_kata_words', JSON.stringify(wordsData));
-            localStorage.setItem('game_kata_teams', JSON.stringify(teams));
-            localStorage.setItem('game_kata_pass', adminPassword);
+            localStorage.setItem('game_kata_words_v16', JSON.stringify(wordsData));
+            localStorage.setItem('game_kata_teams_v16', JSON.stringify(teams));
+            localStorage.setItem('game_kata_pass_v16', adminPassword);
         }
 
         loadLocalData();
+
+        // Cek jika URL memiliki tag cache buster
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('reload')) {
+            console.log("Cache Busted via URL.");
+        }
 
         try {
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
@@ -400,7 +409,7 @@
                 
                 initAuth();
             } else {
-                setSyncUI("Lokal");
+                setSyncUI("Mode Lokal (Terputus)");
                 isInitialLoadDone = true; 
             }
         } catch (error) {
@@ -414,6 +423,8 @@
                 el.innerText = mode;
                 el.className = mode.includes("Cloud") ? "text-green-400 font-bold" : "text-yellow-400 italic";
             }
+            const idEl = document.getElementById('app-id-display');
+            if(idEl) idEl.innerText = appId;
         }
 
         function setupRealtimeSync() {
@@ -427,10 +438,11 @@
                 if (docSnap.exists()) {
                     const cloudData = docSnap.data();
                     
-                    // REVISI: Logika Force Reload jika ada update sistem
+                    // REVISI: Logika Force Reload paksa bypass cache
                     if (cloudData.forceReloadTimestamp && cloudData.forceReloadTimestamp > pageLoadTime) {
-                        console.log("Mendeteksi update baru. Melakukan refresh paksa...");
-                        location.reload(true);
+                        console.warn("Update sistem terdeteksi di Cloud. Melakukan hard refresh...");
+                        const separator = window.location.href.includes('?') ? '&' : '?';
+                        window.location.replace(window.location.href.split('?')[0] + separator + 'reload=' + Date.now());
                         return;
                     }
 
@@ -471,6 +483,7 @@
                     teams: JSON.stringify(teams),
                     adminPassword: adminPassword,
                     lastUpdate: Date.now(),
+                    cloudVersion: SCRIPT_VERSION,
                     ...extraData
                 });
             } catch (e) {
@@ -479,17 +492,17 @@
         }
 
         // --- GLOBAL ADMIN TOOLS ---
-        window.triggerForceReload = async () => {
-            if(confirm("Ini akan memaksa semua HP yang sedang membuka game untuk me-refresh halaman guna mengambil update terbaru. Lanjutkan?")) {
+        window.publishUpdate = async () => {
+            if(confirm("Ini akan memaksa semua HP me-refresh dengan kode terbaru untuk membuang cache lama. Lanjutkan?")) {
                 await syncToCloud({ forceReloadTimestamp: Date.now() });
-                alert("Perintah update dikirim! Semua HP akan memuat ulang dalam hitungan detik.");
+                alert("Sinyal update dikirim ke semua perangkat!");
             }
         };
 
         window.clearDeviceCache = () => {
             if(confirm("Hapus cache data HP ini?")) {
                 localStorage.clear();
-                location.reload(true);
+                window.location.replace(window.location.href.split('?')[0] + '?reload=' + Date.now());
             }
         };
 
@@ -864,7 +877,7 @@
         window.nextLevel = nextLevel;
         window.addEventListener('resize', () => { if (grid.length > 0) renderGrid(); });
         
-        // Boot
+        // Initial setup calls
         updateAdminTeamList();
         renderStats();
 
