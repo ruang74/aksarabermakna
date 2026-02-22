@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Anti-Cache Super Ketat -->
+    <!-- Anti-Cache Header -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Honeycomb Word Game 3D - v1.3</title>
+    <title>Honeycomb Word Game 3D - v1.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -154,7 +154,7 @@
 <body class="min-h-screen">
 
     <div id="db-loading"><i class="fas fa-sync fa-spin text-teal-400"></i></div>
-    <div class="version-badge" id="v-tag">v1.3 (Force Sync Active)</div>
+    <div class="version-badge" id="v-tag">v1.4 (Smart Sync Active)</div>
 
     <!-- Layar Selamat Datang -->
     <div id="welcome-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-navy-dark text-center p-6 text-white overflow-y-auto">
@@ -164,7 +164,7 @@
         <h1 class="text-4xl md:text-7xl font-black mb-4 text-white tracking-tighter uppercase italic">
             SELAMAT <span class="text-teal-400">DATANG</span>
         </h1>
-        <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Sinkronisasi otomatis antar perangkat aktif.</p>
+        <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Sinkronisasi cerdas antar perangkat aktif.</p>
         
         <div class="flex flex-col gap-4 items-center mb-8 w-full max-w-sm">
             <button onclick="startGame()" class="w-full px-12 py-5 bg-teal-500 hover:bg-teal-400 text-navy-dark font-extrabold rounded-full text-xl md:text-2xl btn-3d transition-all">
@@ -242,11 +242,14 @@
             </div>
 
             <!-- Sync Info -->
-            <div id="sync-status" class="mb-6 p-2 rounded-lg bg-navy-dark border border-teal-500/30 text-[10px] flex items-center justify-between">
-                <span>Status Sinkronisasi: <b id="sync-mode" class="text-yellow-400 italic">Mengecek...</b></span>
+            <div id="sync-status" class="mb-6 p-3 rounded-xl bg-navy-dark border border-teal-500/30 text-[10px] flex items-center justify-between flex-wrap gap-2">
+                <div>Status Sinkronisasi: <b id="sync-mode" class="text-yellow-400 italic">Mengecek...</b></div>
                 <div class="flex gap-2">
-                    <!-- REVISI: Tombol khusus untuk membersihkan data lama di device -->
-                    <button onclick="clearDeviceCache()" class="bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/30">RESET CACHE HP</button>
+                    <!-- REVISI: Tombol Force Update Semua Perangkat -->
+                    <button onclick="triggerForceReload()" class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg font-black uppercase tracking-tighter">
+                        PAKSA UPDATE SEMUA HP
+                    </button>
+                    <button onclick="clearDeviceCache()" class="bg-teal-500/20 text-teal-400 px-3 py-1 rounded-lg border border-teal-500/30">RESET CACHE LOKAL</button>
                     <button onclick="location.reload()" class="text-teal-400 underline">Refresh</button>
                 </div>
             </div>
@@ -271,15 +274,6 @@
                             <input id="new-admin-password" type="password" placeholder="Password Baru" class="bg-white border border-gray-300 rounded-lg p-3 flex-1 text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-teal-500 text-xs">
                             <button onclick="changeAdminPassword()" class="bg-teal-600 hover:bg-teal-500 px-4 rounded-lg font-bold transition text-white text-xs btn-3d uppercase">SIMPAN</button>
                         </div>
-                    </div>
-
-                    <div class="mt-4 border-t border-gray-700 pt-4 bg-navy-dark/50 p-3 rounded-lg text-center">
-                        <h4 class="text-[10px] font-black uppercase text-teal-400 mb-2">Pindahkan Data Cepat:</h4>
-                        <div class="flex gap-2">
-                            <button onclick="copyDataTransfer()" class="bg-blue-600 flex-1 py-1 rounded text-[10px] font-bold">SALIN DATA</button>
-                            <button onclick="importDataPrompt()" class="bg-purple-600 flex-1 py-1 rounded text-[10px] font-bold">IMPOR DATA</button>
-                        </div>
-                        <textarea id="data-transfer-box" class="hidden"></textarea>
                     </div>
                 </div>
 
@@ -340,6 +334,9 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Perangkat load time untuk deteksi update
+        const pageLoadTime = Date.now();
+
         // Global state
         let db = null;
         let auth = null;
@@ -360,7 +357,6 @@
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-kata-3d';
         
-        // Coba memuat dari LocalStorage sebagai cadangan
         function loadLocalData() {
             try {
                 const localWords = localStorage.getItem('game_kata_words');
@@ -369,14 +365,13 @@
                 if (localWords) wordsData = JSON.parse(localWords);
                 if (localTeams) teams = JSON.parse(localTeams);
                 if (localPass) adminPassword = localPass;
-            } catch(e) { console.warn("Local storage empty or corrupt."); }
+            } catch(e) {}
         }
 
         function saveLocalData() {
             localStorage.setItem('game_kata_words', JSON.stringify(wordsData));
             localStorage.setItem('game_kata_teams', JSON.stringify(teams));
             localStorage.setItem('game_kata_pass', adminPassword);
-            updateTransferBox();
         }
 
         loadLocalData();
@@ -405,11 +400,11 @@
                 
                 initAuth();
             } else {
-                setSyncUI("Lokal (Gunakan Impor Data)");
+                setSyncUI("Lokal");
                 isInitialLoadDone = true; 
             }
         } catch (error) {
-            setSyncUI("Error Database");
+            setSyncUI("Error DB");
             isInitialLoadDone = true;
         }
 
@@ -424,13 +419,21 @@
         function setupRealtimeSync() {
             if (!db || !user) return;
             document.getElementById('db-loading').style.display = 'block';
-            setSyncUI("Cloud (Sinkron Otomatis)");
+            setSyncUI("Cloud Terhubung");
             
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'gameConfig', 'settings');
             
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const cloudData = docSnap.data();
+                    
+                    // REVISI: Logika Force Reload jika ada update sistem
+                    if (cloudData.forceReloadTimestamp && cloudData.forceReloadTimestamp > pageLoadTime) {
+                        console.log("Mendeteksi update baru. Melakukan refresh paksa...");
+                        location.reload(true);
+                        return;
+                    }
+
                     const oldWordsDataStr = JSON.stringify(wordsData);
                     
                     if (cloudData.wordsData) wordsData = JSON.parse(cloudData.wordsData);
@@ -451,14 +454,13 @@
                 isInitialLoadDone = true;
                 document.getElementById('db-loading').style.display = 'none';
             }, (error) => {
-                console.error("Sync error:", error);
                 setSyncUI("Terputus");
                 isInitialLoadDone = true;
                 document.getElementById('db-loading').style.display = 'none';
             });
         }
 
-        async function syncToCloud() {
+        async function syncToCloud(extraData = {}) {
             if (!isInitialLoadDone) return;
             saveLocalData(); 
 
@@ -468,7 +470,8 @@
                     wordsData: JSON.stringify(wordsData),
                     teams: JSON.stringify(teams),
                     adminPassword: adminPassword,
-                    lastUpdate: Date.now()
+                    lastUpdate: Date.now(),
+                    ...extraData
                 });
             } catch (e) {
                 console.error("Error saving data:", e);
@@ -476,42 +479,17 @@
         }
 
         // --- GLOBAL ADMIN TOOLS ---
-        window.clearDeviceCache = () => {
-            if(confirm("Hapus data tersimpan di HP ini? Gunakan jika tampilan error atau tidak update.")) {
-                localStorage.clear();
-                alert("Cache perangkat dihapus. Aplikasi akan memuat ulang...");
-                location.reload();
+        window.triggerForceReload = async () => {
+            if(confirm("Ini akan memaksa semua HP yang sedang membuka game untuk me-refresh halaman guna mengambil update terbaru. Lanjutkan?")) {
+                await syncToCloud({ forceReloadTimestamp: Date.now() });
+                alert("Perintah update dikirim! Semua HP akan memuat ulang dalam hitungan detik.");
             }
         };
 
-        window.copyDataTransfer = () => {
-            updateTransferBox();
-            const box = document.getElementById('data-transfer-box');
-            box.select();
-            document.execCommand('copy');
-            alert("KODE DATA DISALIN! Tempel kode ini di fitur 'IMPOR DATA' di HP Anda.");
-        };
-
-        function updateTransferBox() {
-            const data = { wordsData, teams, adminPassword };
-            const box = document.getElementById('data-transfer-box');
-            if(box) box.value = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-        }
-
-        window.importDataPrompt = () => {
-            const input = prompt("Tempelkan KODE DATA di sini:");
-            if(input) {
-                try {
-                    const decoded = JSON.parse(decodeURIComponent(escape(atob(input))));
-                    if(decoded.wordsData && decoded.teams) {
-                        wordsData = decoded.wordsData;
-                        teams = decoded.teams;
-                        if(decoded.adminPassword) adminPassword = decoded.adminPassword;
-                        syncToCloud();
-                        alert("Berhasil! Data diimpor.");
-                        initLevel(currentLevel);
-                    }
-                } catch(e) { alert("Kode tidak valid!"); }
+        window.clearDeviceCache = () => {
+            if(confirm("Hapus cache data HP ini?")) {
+                localStorage.clear();
+                location.reload(true);
             }
         };
 
@@ -817,10 +795,11 @@
         };
 
         window.saveWords = async () => {
-            const lvl = document.getElementById('admin-level-select').value;
-            const input = document.getElementById('admin-word-input').value;
-            if (!input) return;
-            const pairs = input.split('.').filter(p => p.includes(','));
+            const lvlInput = document.getElementById('admin-level-select');
+            const input = document.getElementById('admin-word-input');
+            if (!lvlInput || !input || !input.value) return;
+            const lvl = lvlInput.value;
+            const pairs = input.value.split('.').filter(p => p.includes(','));
             const formatted = pairs.map(p => {
                 const parts = p.split(',');
                 return { clue: parts[0].trim(), word: parts[1].trim() };
@@ -829,7 +808,7 @@
             wordsData[lvl] = [...(wordsData[lvl] || []), ...formatted];
             await syncToCloud();
             updateAdminWordList();
-            document.getElementById('admin-word-input').value = '';
+            input.value = '';
         };
 
         function updateAdminWordList() {
@@ -885,7 +864,7 @@
         window.nextLevel = nextLevel;
         window.addEventListener('resize', () => { if (grid.length > 0) renderGrid(); });
         
-        // Final Boot
+        // Boot
         updateAdminTeamList();
         renderStats();
 
