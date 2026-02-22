@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Anti-Cache untuk memastikan HP selalu memuat versi terbaru -->
+    <!-- Anti-Cache Super Ketat -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Honeycomb Word Game 3D - v1.2</title>
+    <title>Honeycomb Word Game 3D - v1.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -129,6 +129,15 @@
             display: none;
             color: #64ffda;
         }
+        
+        .version-badge {
+            position: fixed;
+            bottom: 5px;
+            right: 10px;
+            font-size: 8px;
+            color: rgba(255,255,255,0.3);
+            z-index: 1000;
+        }
 
         .custom-scroll::-webkit-scrollbar {
             width: 6px;
@@ -140,21 +149,12 @@
             background: #64ffda;
             border-radius: 10px;
         }
-        
-        .version-badge {
-            position: fixed;
-            bottom: 5px;
-            right: 10px;
-            font-size: 8px;
-            color: rgba(255,255,255,0.3);
-            z-index: 1000;
-        }
     </style>
 </head>
 <body class="min-h-screen">
 
     <div id="db-loading"><i class="fas fa-sync fa-spin text-teal-400"></i></div>
-    <div class="version-badge">v1.2 (Latest Update)</div>
+    <div class="version-badge" id="v-tag">v1.3 (Force Sync Active)</div>
 
     <!-- Layar Selamat Datang -->
     <div id="welcome-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-navy-dark text-center p-6 text-white overflow-y-auto">
@@ -164,7 +164,7 @@
         <h1 class="text-4xl md:text-7xl font-black mb-4 text-white tracking-tighter uppercase italic">
             SELAMAT <span class="text-teal-400">DATANG</span>
         </h1>
-        <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Masukkan password admin untuk mengatur kata.</p>
+        <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Sinkronisasi otomatis antar perangkat aktif.</p>
         
         <div class="flex flex-col gap-4 items-center mb-8 w-full max-w-sm">
             <button onclick="startGame()" class="w-full px-12 py-5 bg-teal-500 hover:bg-teal-400 text-navy-dark font-extrabold rounded-full text-xl md:text-2xl btn-3d transition-all">
@@ -244,7 +244,11 @@
             <!-- Sync Info -->
             <div id="sync-status" class="mb-6 p-2 rounded-lg bg-navy-dark border border-teal-500/30 text-[10px] flex items-center justify-between">
                 <span>Status Sinkronisasi: <b id="sync-mode" class="text-yellow-400 italic">Mengecek...</b></span>
-                <button onclick="location.reload()" class="text-teal-400 underline">Refresh Aplikasi</button>
+                <div class="flex gap-2">
+                    <!-- REVISI: Tombol khusus untuk membersihkan data lama di device -->
+                    <button onclick="clearDeviceCache()" class="bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/30">RESET CACHE HP</button>
+                    <button onclick="location.reload()" class="text-teal-400 underline">Refresh</button>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -269,15 +273,13 @@
                         </div>
                     </div>
 
-                    <!-- Backup Feature -->
-                    <div class="mt-4 border-t border-gray-700 pt-4 bg-navy-dark/50 p-3 rounded-lg">
-                        <h4 class="text-[10px] font-black uppercase text-teal-400 mb-2">Pindahkan Data (Antar HP/PC):</h4>
-                        <p class="text-[8px] text-gray-400 mb-2">Salin kode di bawah untuk memindah data ke perangkat lain.</p>
-                        <textarea id="data-transfer-box" rows="2" readonly class="w-full bg-black text-teal-500 text-[10px] p-2 rounded mb-2 border border-gray-800"></textarea>
+                    <div class="mt-4 border-t border-gray-700 pt-4 bg-navy-dark/50 p-3 rounded-lg text-center">
+                        <h4 class="text-[10px] font-black uppercase text-teal-400 mb-2">Pindahkan Data Cepat:</h4>
                         <div class="flex gap-2">
-                            <button onclick="copyDataTransfer()" class="bg-blue-600 px-2 py-1 rounded text-[10px] font-bold">SALIN DATA</button>
-                            <button onclick="importDataPrompt()" class="bg-purple-600 px-2 py-1 rounded text-[10px] font-bold">IMPOR DATA</button>
+                            <button onclick="copyDataTransfer()" class="bg-blue-600 flex-1 py-1 rounded text-[10px] font-bold">SALIN DATA</button>
+                            <button onclick="importDataPrompt()" class="bg-purple-600 flex-1 py-1 rounded text-[10px] font-bold">IMPOR DATA</button>
                         </div>
+                        <textarea id="data-transfer-box" class="hidden"></textarea>
                     </div>
                 </div>
 
@@ -286,7 +288,6 @@
                     <h3 class="text-xl font-bold text-teal-400 flex items-center gap-2">
                         <i class="fas fa-spell-check"></i> Bank Kata & Clue
                     </h3>
-                    <p class="text-[10px] text-gray-400 italic">Format: Clue,Jawaban. Clue,Jawaban.</p>
                     <div class="flex flex-col gap-1">
                         <select id="admin-level-select" onchange="updateAdminWordList()" class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-black outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer text-sm uppercase">
                             <option value="1">LEVEL 1</option>
@@ -295,7 +296,7 @@
                             <option value="4">LEVEL 4</option>
                         </select>
                     </div>
-                    <textarea id="admin-word-input" rows="4" placeholder="Contoh: Raja Hutan,Singa. Ibu Kota RI,Jakarta." class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-medium outline-none focus:ring-2 focus:ring-teal-500 text-sm"></textarea>
+                    <textarea id="admin-word-input" rows="4" placeholder="Clue,Jawaban. Clue,Jawaban." class="w-full bg-white border border-gray-300 rounded-lg p-3 text-gray-900 font-medium outline-none focus:ring-2 focus:ring-teal-500 text-sm"></textarea>
                     <div class="flex gap-2">
                         <button onclick="saveWords()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold transition text-white text-sm">SIMPAN</button>
                         <button onclick="resetWords()" class="px-4 py-3 bg-red-600/20 text-red-500 border border-red-600/50 rounded-lg font-bold hover:bg-red-600/30 transition"><i class="fas fa-trash"></i></button>
@@ -303,9 +304,9 @@
 
                     <div class="mt-4 border-t border-gray-700 pt-4">
                         <div class="flex justify-between items-center mb-2">
-                            <h4 class="text-[10px] font-black uppercase text-teal-400">Daftar Kata Tersimpan:</h4>
-                            <button onclick="bulkDeleteLevelWords()" class="text-[9px] bg-red-500/10 text-red-500 border border-red-500/30 px-2 py-1 rounded hover:bg-red-500/20 font-black">
-                                HAPUS MASAL LEVEL INI
+                            <h4 class="text-[10px] font-black uppercase text-teal-400">Tersimpan:</h4>
+                            <button onclick="bulkDeleteLevelWords()" class="text-[9px] bg-red-500/10 text-red-500 border border-red-500/30 px-2 py-1 rounded font-black">
+                                HAPUS MASAL
                             </button>
                         </div>
                         <div id="admin-word-list" class="max-h-40 overflow-y-auto custom-scroll space-y-1 text-xs">
@@ -359,30 +360,26 @@
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-kata-3d';
         
-        function loadLocalFallback() {
-            const localWords = localStorage.getItem('game_kata_words');
-            const localTeams = localStorage.getItem('game_kata_teams');
-            const localPass = localStorage.getItem('game_kata_pass');
-            if (localWords) wordsData = JSON.parse(localWords);
-            if (localTeams) teams = JSON.parse(localTeams);
-            if (localPass) adminPassword = localPass;
-            updateTransferBox();
+        // Coba memuat dari LocalStorage sebagai cadangan
+        function loadLocalData() {
+            try {
+                const localWords = localStorage.getItem('game_kata_words');
+                const localTeams = localStorage.getItem('game_kata_teams');
+                const localPass = localStorage.getItem('game_kata_pass');
+                if (localWords) wordsData = JSON.parse(localWords);
+                if (localTeams) teams = JSON.parse(localTeams);
+                if (localPass) adminPassword = localPass;
+            } catch(e) { console.warn("Local storage empty or corrupt."); }
         }
 
-        function saveLocalFallback() {
+        function saveLocalData() {
             localStorage.setItem('game_kata_words', JSON.stringify(wordsData));
             localStorage.setItem('game_kata_teams', JSON.stringify(teams));
             localStorage.setItem('game_kata_pass', adminPassword);
             updateTransferBox();
         }
 
-        function updateTransferBox() {
-            const data = { wordsData, teams, adminPassword };
-            const box = document.getElementById('data-transfer-box');
-            if(box) box.value = btoa(JSON.stringify(data));
-        }
-
-        loadLocalFallback();
+        loadLocalData();
 
         try {
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
@@ -408,7 +405,7 @@
                 
                 initAuth();
             } else {
-                setSyncUI("Lokal (Luring)");
+                setSyncUI("Lokal (Gunakan Impor Data)");
                 isInitialLoadDone = true; 
             }
         } catch (error) {
@@ -420,14 +417,14 @@
             const el = document.getElementById('sync-mode');
             if(el) {
                 el.innerText = mode;
-                el.className = mode.includes("Cloud") ? "text-green-400" : "text-yellow-400 italic";
+                el.className = mode.includes("Cloud") ? "text-green-400 font-bold" : "text-yellow-400 italic";
             }
         }
 
         function setupRealtimeSync() {
             if (!db || !user) return;
             document.getElementById('db-loading').style.display = 'block';
-            setSyncUI("Cloud (Aktif)");
+            setSyncUI("Cloud (Sinkron Otomatis)");
             
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'gameConfig', 'settings');
             
@@ -440,7 +437,7 @@
                     if (cloudData.teams) teams = JSON.parse(cloudData.teams);
                     if (cloudData.adminPassword) adminPassword = cloudData.adminPassword;
                     
-                    saveLocalFallback();
+                    saveLocalData();
                     
                     updateAdminTeamList();
                     renderStats();
@@ -455,7 +452,7 @@
                 document.getElementById('db-loading').style.display = 'none';
             }, (error) => {
                 console.error("Sync error:", error);
-                setSyncUI("Error Sinkron");
+                setSyncUI("Terputus");
                 isInitialLoadDone = true;
                 document.getElementById('db-loading').style.display = 'none';
             });
@@ -463,7 +460,7 @@
 
         async function syncToCloud() {
             if (!isInitialLoadDone) return;
-            saveLocalFallback(); 
+            saveLocalData(); 
 
             if (!db || !user) return;
             try {
@@ -479,31 +476,42 @@
         }
 
         // --- GLOBAL ADMIN TOOLS ---
+        window.clearDeviceCache = () => {
+            if(confirm("Hapus data tersimpan di HP ini? Gunakan jika tampilan error atau tidak update.")) {
+                localStorage.clear();
+                alert("Cache perangkat dihapus. Aplikasi akan memuat ulang...");
+                location.reload();
+            }
+        };
+
         window.copyDataTransfer = () => {
+            updateTransferBox();
             const box = document.getElementById('data-transfer-box');
             box.select();
             document.execCommand('copy');
-            alert("Data berhasil disalin! Silakan tempel (paste) di fitur 'IMPOR DATA' di perangkat lain.");
+            alert("KODE DATA DISALIN! Tempel kode ini di fitur 'IMPOR DATA' di HP Anda.");
         };
 
+        function updateTransferBox() {
+            const data = { wordsData, teams, adminPassword };
+            const box = document.getElementById('data-transfer-box');
+            if(box) box.value = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+        }
+
         window.importDataPrompt = () => {
-            const input = prompt("Tempelkan kode data dari perangkat lain di sini:");
+            const input = prompt("Tempelkan KODE DATA di sini:");
             if(input) {
                 try {
-                    const decoded = JSON.parse(atob(input));
+                    const decoded = JSON.parse(decodeURIComponent(escape(atob(input))));
                     if(decoded.wordsData && decoded.teams) {
                         wordsData = decoded.wordsData;
                         teams = decoded.teams;
                         if(decoded.adminPassword) adminPassword = decoded.adminPassword;
                         syncToCloud();
-                        alert("Data berhasil diimpor! Me-refresh tampilan...");
+                        alert("Berhasil! Data diimpor.");
                         initLevel(currentLevel);
-                    } else {
-                        throw new Error("Invalid Format");
                     }
-                } catch(e) {
-                    alert("Kode data tidak valid!");
-                }
+                } catch(e) { alert("Kode tidak valid!"); }
             }
         };
 
@@ -521,11 +529,7 @@
 
         function getInitialsFromWords(phrase) {
             if (!phrase) return "";
-            return phrase.split(' ')
-                         .filter(word => word.length > 0)
-                         .map(word => word[0])
-                         .join('')
-                         .toUpperCase();
+            return phrase.split(' ').filter(word => word.length > 0).map(word => word[0]).join('').toUpperCase();
         }
 
         function initLevel(lvl) {
@@ -541,18 +545,15 @@
             const levelData = wordsData[lvl] || [];
             
             for (let i = 0; i < 25; i++) {
-                const data = levelData[i] || { word: "KATA", clue: "Belum ada petunjuk admin." };
-                const initials = getInitialsFromWords(data.word);
-
+                const data = levelData[i] || { word: "KATA", clue: "Belum ada petunjuk." };
                 grid.push({
-                    initial: initials,
+                    initial: getInitialsFromWords(data.word),
                     fullWord: data.word,
                     clue: data.clue,
                     owner: null, 
                     id: i
                 });
             }
-
             renderGrid();
             renderStats();
             updateAdminTeamList();
@@ -736,7 +737,6 @@
             initLevel(currentLevel + 1);
         }
 
-        // --- ADMIN PANEL FUNCTIONS ---
         window.checkWelcomeAdmin = () => {
             const passInput = document.getElementById('welcome-password');
             if (passInput.value === adminPassword) {
@@ -745,9 +745,7 @@
                 modal.classList.add('flex');
                 passInput.value = "";
                 updateAdminWordList();
-            } else {
-                alert("Password Salah!");
-            }
+            } else { alert("Password Salah!"); }
         };
 
         window.toggleAdmin = () => {
@@ -759,24 +757,17 @@
                     modal.classList.remove('hidden');
                     modal.classList.add('flex');
                     updateAdminWordList();
-                } else if (pass !== null) {
-                    alert("Password Salah!");
-                }
-            } else {
-                closeAdminDirectly();
-            }
+                } else if (pass !== null) { alert("Password Salah!"); }
+            } else { closeAdminDirectly(); }
         };
 
         window.changeAdminPassword = async () => {
             const newPass = document.getElementById('new-admin-password').value;
-            if (!newPass) {
-                alert("Password baru tidak boleh kosong!");
-                return;
-            }
+            if (!newPass) return;
             if (confirm("Ganti password admin?")) {
                 adminPassword = newPass;
                 await syncToCloud();
-                alert("Password admin berhasil diperbarui!");
+                alert("Berhasil diperbarui!");
                 document.getElementById('new-admin-password').value = "";
             }
         };
@@ -834,14 +825,10 @@
                 const parts = p.split(',');
                 return { clue: parts[0].trim(), word: parts[1].trim() };
             });
-            if (formatted.length === 0) {
-                alert("Format salah! Gunakan format: Clue,Jawaban. Clue,Jawaban.");
-                return;
-            }
+            if (formatted.length === 0) return;
             wordsData[lvl] = [...(wordsData[lvl] || []), ...formatted];
             await syncToCloud();
             updateAdminWordList();
-            alert(`Berhasil menyimpan kata untuk Level ${lvl}`);
             document.getElementById('admin-word-input').value = '';
         };
 
@@ -853,13 +840,13 @@
             list.innerHTML = '';
             const currentWords = wordsData[lvl] || [];
             if (currentWords.length === 0) {
-                list.innerHTML = '<p class="text-[10px] text-gray-500 italic">Belum ada kata di level ini.</p>';
+                list.innerHTML = '<p class="text-[10px] text-gray-500 italic">Kosong.</p>';
                 return;
             }
             currentWords.forEach((item, index) => {
                 const row = document.createElement('div');
                 row.className = 'flex justify-between items-center bg-navy-dark/40 p-2 rounded-lg border border-gray-800 text-[10px]';
-                row.innerHTML = `<div class="flex-1 truncate pr-2"><span class="text-teal-400 font-bold">${item.word}</span><span class="text-gray-400"> - ${item.clue}</span></div><button onclick="removeWord(${lvl}, ${index})" class="text-red-400 hover:text-red-300 p-1"><i class="fas fa-trash"></i></button>`;
+                row.innerHTML = `<div class="flex-1 truncate pr-2"><span class="text-teal-400 font-bold">${item.word}</span><span class="text-gray-400"> - ${item.clue}</span></div><button onclick="removeWord(${lvl}, ${index})" class="text-red-400 p-1"><i class="fas fa-trash"></i></button>`;
                 list.appendChild(row);
             });
         }
@@ -881,11 +868,10 @@
         };
 
         window.resetWords = async () => {
-            if(confirm("Hapus SEMUA daftar kata dari SEMUA level?")) {
+            if(confirm("Hapus daftar kata SEMUA level?")) {
                 wordsData = { 1:[], 2:[], 3:[], 4:[] };
                 await syncToCloud();
                 updateAdminWordList();
-                alert("Daftar kata dikosongkan.");
             }
         };
 
@@ -893,14 +879,13 @@
             teams.forEach(t => t.score = 0);
             renderStats();
             await syncToCloud();
-            alert("Semua poin tim telah direset.");
         };
 
         window.initLevel = initLevel;
         window.nextLevel = nextLevel;
         window.addEventListener('resize', () => { if (grid.length > 0) renderGrid(); });
         
-        // Initial setup calls
+        // Final Boot
         updateAdminTeamList();
         renderStats();
 
