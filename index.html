@@ -366,14 +366,22 @@
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const cloudData = docSnap.data();
+                    
+                    const oldWordsDataStr = JSON.stringify(wordsData);
+                    
                     if (cloudData.wordsData) wordsData = JSON.parse(cloudData.wordsData);
                     if (cloudData.teams) teams = JSON.parse(cloudData.teams);
                     if (cloudData.adminPassword) adminPassword = cloudData.adminPassword;
                     
-                    // Update UI tanpa merefresh seluruh game jika sedang bermain
-                    updateAdminTeamList();
-                    renderStats();
-                    updateAdminWordList();
+                    // REVISI: Jika data kata berubah dan sedang dalam game-app, render ulang grid agar sinkron
+                    const isGameActive = !document.getElementById('game-app').classList.contains('hidden');
+                    if (isGameActive && oldWordsDataStr !== JSON.stringify(wordsData)) {
+                        initLevel(currentLevel); 
+                    } else {
+                        updateAdminTeamList();
+                        renderStats();
+                        updateAdminWordList();
+                    }
                 }
                 document.getElementById('db-loading').style.display = 'none';
             }, (error) => {
@@ -399,7 +407,7 @@
         window.startGame = () => {
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('game-app').classList.remove('hidden');
-            initLevel(1);
+            initLevel(currentLevel);
         };
 
         window.goHome = () => {
