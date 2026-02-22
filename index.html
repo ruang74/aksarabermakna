@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Meta tags untuk mencegah cache pada browser HP -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Honeycomb Word Game 3D - Clue System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -368,19 +372,22 @@
                     const cloudData = docSnap.data();
                     
                     const oldWordsDataStr = JSON.stringify(wordsData);
+                    const oldTeamsStr = JSON.stringify(teams);
                     
                     if (cloudData.wordsData) wordsData = JSON.parse(cloudData.wordsData);
                     if (cloudData.teams) teams = JSON.parse(cloudData.teams);
                     if (cloudData.adminPassword) adminPassword = cloudData.adminPassword;
                     
-                    // REVISI: Jika data kata berubah dan sedang dalam game-app, render ulang grid agar sinkron
+                    // REVISI: Update tampilan secara cerdas
+                    updateAdminTeamList();
+                    renderStats();
+                    updateAdminWordList();
+
                     const isGameActive = !document.getElementById('game-app').classList.contains('hidden');
-                    if (isGameActive && oldWordsDataStr !== JSON.stringify(wordsData)) {
+                    
+                    // Jika game aktif dan data kata berubah, atau grid belum terbuat (load pertama)
+                    if (isGameActive && (oldWordsDataStr !== JSON.stringify(wordsData) || grid.length === 0)) {
                         initLevel(currentLevel); 
-                    } else {
-                        updateAdminTeamList();
-                        renderStats();
-                        updateAdminWordList();
                     }
                 }
                 document.getElementById('db-loading').style.display = 'none';
@@ -407,6 +414,7 @@
         window.startGame = () => {
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('game-app').classList.remove('hidden');
+            // Pastikan data terbaru dimuat sebelum initLevel
             initLevel(currentLevel);
         };
 
@@ -564,6 +572,7 @@
             document.getElementById('action-controls').classList.add('hidden');
             renderStats();
             if (grid.every(h => h.owner !== null)) finishLevel();
+            syncToCloud(); // Simpan skor terbaru
         }
 
         function checkBonus(teamId) {
