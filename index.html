@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Meta tags untuk mencegah cache pada browser HP -->
+    <!-- Anti-Cache untuk memastikan HP selalu memuat versi terbaru -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -123,10 +123,11 @@
             top: 20px;
             right: 20px;
             z-index: 1000;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.8);
             padding: 10px;
             border-radius: 50%;
             display: none;
+            color: #64ffda;
         }
 
         .custom-scroll::-webkit-scrollbar {
@@ -143,7 +144,7 @@
 </head>
 <body class="min-h-screen">
 
-    <div id="db-loading"><i class="fas fa-sync fa-spin text-teal-400"></i></div>
+    <div id="db-loading"><i class="fas fa-sync fa-spin"></i></div>
 
     <!-- Layar Selamat Datang -->
     <div id="welcome-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-navy-dark text-center p-6 text-white overflow-y-auto">
@@ -315,6 +316,7 @@
         let db = null;
         let auth = null;
         let user = null;
+        let isInitialLoadDone = false; // Flag untuk mencegah overwrite data cloud
         let adminPassword = 'admin123';
         let teams = [
             { id: 0, name: 'Tim Hijau', color: '#10b981', score: 0 },
@@ -330,6 +332,24 @@
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-kata-3d';
         
+        // Coba memuat dari LocalStorage sebagai cadangan (GitHub Pages)
+        function loadLocalFallback() {
+            const localWords = localStorage.getItem('game_kata_words');
+            const localTeams = localStorage.getItem('game_kata_teams');
+            const localPass = localStorage.getItem('game_kata_pass');
+            if (localWords) wordsData = JSON.parse(localWords);
+            if (localTeams) teams = JSON.parse(localTeams);
+            if (localPass) adminPassword = localPass;
+        }
+
+        function saveLocalFallback() {
+            localStorage.setItem('game_kata_words', JSON.stringify(wordsData));
+            localStorage.setItem('game_kata_teams', JSON.stringify(teams));
+            localStorage.setItem('game_kata_pass', adminPassword);
+        }
+
+        loadLocalFallback();
+
         try {
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 const firebaseConfig = JSON.parse(__firebase_config);
@@ -355,12 +375,13 @@
                 initAuth();
             } else {
                 console.warn("Konfigurasi Firebase tidak ditemukan. Berjalan dalam mode lokal.");
+                isInitialLoadDone = true; 
             }
         } catch (error) {
             console.error("Kesalahan inisialisasi database:", error);
+            isInitialLoadDone = true;
         }
 
-        // Sinkronisasi Real-time menggunakan onSnapshot
         function setupRealtimeSync() {
             if (!db || !user) return;
             document.getElementById('db-loading').style.display = 'block';
@@ -372,38 +393,47 @@
                     const cloudData = docSnap.data();
                     
                     const oldWordsDataStr = JSON.stringify(wordsData);
-                    const oldTeamsStr = JSON.stringify(teams);
                     
                     if (cloudData.wordsData) wordsData = JSON.parse(cloudData.wordsData);
                     if (cloudData.teams) teams = JSON.parse(cloudData.teams);
                     if (cloudData.adminPassword) adminPassword = cloudData.adminPassword;
                     
-                    // REVISI: Update tampilan secara cerdas
+                    // Simpan ke local juga sebagai cache
+                    saveLocalFallback();
+                    
                     updateAdminTeamList();
                     renderStats();
                     updateAdminWordList();
 
                     const isGameActive = !document.getElementById('game-app').classList.contains('hidden');
                     
-                    // Jika game aktif dan data kata berubah, atau grid belum terbuat (load pertama)
+                    // Jika data berubah drastis (misal admin update kata dari PC), HP akan merender ulang grid
                     if (isGameActive && (oldWordsDataStr !== JSON.stringify(wordsData) || grid.length === 0)) {
                         initLevel(currentLevel); 
                     }
                 }
+                isInitialLoadDone = true;
                 document.getElementById('db-loading').style.display = 'none';
             }, (error) => {
                 console.error("Sync error:", error);
+                isInitialLoadDone = true;
                 document.getElementById('db-loading').style.display = 'none';
             });
         }
 
         async function syncToCloud() {
+            // JANGAN SIMPAN jika data belum pernah berhasil dimuat (mencegah reset ke 0)
+            if (!isInitialLoadDone) return;
+            
+            saveLocalFallback(); // Selalu simpan ke local device
+
             if (!db || !user) return;
             try {
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'gameConfig', 'settings'), {
                     wordsData: JSON.stringify(wordsData),
                     teams: JSON.stringify(teams),
-                    adminPassword: adminPassword
+                    adminPassword: adminPassword,
+                    lastUpdate: Date.now()
                 });
             } catch (e) {
                 console.error("Error saving data:", e);
@@ -414,7 +444,6 @@
         window.startGame = () => {
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('game-app').classList.remove('hidden');
-            // Pastikan data terbaru dimuat sebelum initLevel
             initLevel(currentLevel);
         };
 
@@ -572,7 +601,7 @@
             document.getElementById('action-controls').classList.add('hidden');
             renderStats();
             if (grid.every(h => h.owner !== null)) finishLevel();
-            syncToCloud(); // Simpan skor terbaru
+            syncToCloud(); 
         }
 
         function checkBonus(teamId) {
