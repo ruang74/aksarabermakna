@@ -139,7 +139,7 @@
 </head>
 <body class="min-h-screen">
 
-    <div id="db-loading"><i class="fas fa-sync fa-spin"></i></div>
+    <div id="db-loading"><i class="fas fa-sync fa-spin text-teal-400"></i></div>
 
     <!-- Layar Selamat Datang -->
     <div id="welcome-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-navy-dark text-center p-6 text-white overflow-y-auto">
@@ -151,7 +151,7 @@
         </h1>
         <p class="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Game Kata Strategi Sarang Lebah. Masukkan password admin untuk mengatur kata.</p>
         
-        <div class="flex flex-col gap-4 items-center mb-8 w-full max-sm">
+        <div class="flex flex-col gap-4 items-center mb-8 w-full max-w-sm">
             <button onclick="startGame()" class="w-full px-12 py-5 bg-teal-500 hover:bg-teal-400 text-navy-dark font-extrabold rounded-full text-xl md:text-2xl btn-3d transition-all">
                 MULAI BERMAIN <i class="fas fa-play ml-2"></i>
             </button>
@@ -276,7 +276,7 @@
                                 HAPUS MASAL LEVEL INI
                             </button>
                         </div>
-                        <div id="admin-word-list" class="max-h-40 overflow-y-auto custom-scroll space-y-1">
+                        <div id="admin-word-list" class="max-h-40 overflow-y-auto custom-scroll space-y-1 text-xs">
                         </div>
                     </div>
                 </div>
@@ -305,7 +305,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global state
         let db = null;
@@ -324,7 +324,6 @@
         let activeHexIndex = null;
         let isRevealed = false;
 
-        // Firebase Initialization with Safety Check for External Hosting (like GitHub Pages)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-kata-3d';
         
         try {
@@ -342,38 +341,45 @@
                     }
                 };
 
-                onAuthStateChanged(auth, async (u) => {
+                onAuthStateChanged(auth, (u) => {
                     user = u;
                     if (user) {
-                        await loadPersistentData();
+                        setupRealtimeSync();
                     }
                 });
                 
                 initAuth();
+            } else {
+                console.warn("Konfigurasi Firebase tidak ditemukan. Berjalan dalam mode lokal.");
             }
         } catch (error) {
-            console.warn("Database initialization skipped. Running in local mode.");
+            console.error("Kesalahan inisialisasi database:", error);
         }
 
-        async function loadPersistentData() {
+        // Sinkronisasi Real-time menggunakan onSnapshot
+        function setupRealtimeSync() {
             if (!db || !user) return;
             document.getElementById('db-loading').style.display = 'block';
-            try {
-                const docSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'gameConfig', 'settings'));
+            
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'gameConfig', 'settings');
+            
+            onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const cloudData = docSnap.data();
                     if (cloudData.wordsData) wordsData = JSON.parse(cloudData.wordsData);
                     if (cloudData.teams) teams = JSON.parse(cloudData.teams);
                     if (cloudData.adminPassword) adminPassword = cloudData.adminPassword;
+                    
+                    // Update UI tanpa merefresh seluruh game jika sedang bermain
                     updateAdminTeamList();
                     renderStats();
                     updateAdminWordList();
                 }
-            } catch (e) {
-                console.error("Error loading data:", e);
-            } finally {
                 document.getElementById('db-loading').style.display = 'none';
-            }
+            }, (error) => {
+                console.error("Sync error:", error);
+                document.getElementById('db-loading').style.display = 'none';
+            });
         }
 
         async function syncToCloud() {
@@ -389,7 +395,7 @@
             }
         }
 
-        // --- GAME LOGIC (Attached to window even if DB fails) ---
+        // --- GAME LOGIC ---
         window.startGame = () => {
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('game-app').classList.remove('hidden');
@@ -598,7 +604,7 @@
             initLevel(currentLevel + 1);
         }
 
-        // --- ADMIN PANEL FUNCTIONS (Attached to window) ---
+        // --- ADMIN PANEL FUNCTIONS ---
         window.checkWelcomeAdmin = () => {
             const passInput = document.getElementById('welcome-password');
             if (passInput.value === adminPassword) {
@@ -652,7 +658,7 @@
         }
         window.closeAdminDirectly = closeAdminDirectly;
 
-        window.addTeam = () => {
+        window.addTeam = async () => {
             const nameInput = document.getElementById('new-team-name');
             const colorInput = document.getElementById('new-team-color');
             if (!nameInput.value) return;
@@ -663,7 +669,7 @@
             colorInput.value = teamColorPalette[nextColorIndex];
             renderStats();
             updateAdminTeamList();
-            syncToCloud();
+            await syncToCloud();
         };
 
         function updateAdminTeamList() {
@@ -673,18 +679,18 @@
             teams.forEach((t) => {
                 const item = document.createElement('div');
                 item.className = 'flex justify-between items-center bg-navy-dark/50 p-3 rounded-lg border border-gray-700';
-                item.innerHTML = `<div class="flex items-center gap-3"><div class="w-5 h-5 rounded-full" style="background:${t.color}"></div><span class="font-bold text-white text-xs">${t.name}</span></div><button onclick="removeTeam(${t.id})" class="text-red-500 p-2"><i class="fas fa-trash-alt text-white"></i></button>`;
+                item.innerHTML = `<div class="flex items-center gap-3 text-xs"><div class="w-5 h-5 rounded-full" style="background:${t.color}"></div><span class="font-bold text-white text-xs">${t.name}</span></div><button onclick="removeTeam(${t.id})" class="text-red-500 p-2"><i class="fas fa-trash-alt text-white"></i></button>`;
                 list.appendChild(item);
             });
         }
         window.updateAdminTeamList = updateAdminTeamList;
 
-        window.removeTeam = (id) => {
+        window.removeTeam = async (id) => {
             if (teams.length <= 1) return;
             teams = teams.filter(t => t.id !== id);
             renderStats();
             updateAdminTeamList();
-            syncToCloud();
+            await syncToCloud();
         };
 
         window.saveWords = async () => {
@@ -761,7 +767,7 @@
         window.nextLevel = nextLevel;
         window.addEventListener('resize', () => { if (grid.length > 0) renderGrid(); });
         
-        // Initial setup calls for UI
+        // Initial setup calls
         updateAdminTeamList();
         renderStats();
 
